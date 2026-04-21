@@ -8,6 +8,7 @@ from toconline_mcp.tools import (
     auth,
     contacts,
     customers,
+    document_actions,
     generic,
     products,
     purchases,
@@ -27,4 +28,5 @@ def register_all(mcp: FastMCP, client: TocClient) -> None:
     purchases.register(mcp, client)
     addresses.register(mcp, client)
     contacts.register(mcp, client)
+    document_actions.register(mcp, client)
     generic.register(mcp, client)

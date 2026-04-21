@@ -287,30 +287,37 @@ to the top level, and `relationships.<name>.data.id` becomes `<name>_id`:
 }
 ```
 
+### Document actions (PDF, email, finalize, void)
+
+| Tool | Purpose |
+|---|---|
+| `get_document_pdf_url` | Get a signed public URL to the PDF of a sales document, sales receipt, or purchase document. The URL works unauthenticated for a short time — share it with a user and they can download. |
+| `send_document_email` | Email a sales document or receipt to a recipient via TOCOnline's mail servers. |
+| `finalize_sales_document` / `finalize_purchase_document` | Issue a draft document. Irreversible — requires `confirm=true`. |
+| `void_sales_receipt` / `void_purchase_document` | Void (anular) a document. Irreversible — requires `confirm=true`. |
+
+These endpoints aren't in the public API docs but are discoverable via the
+Postman collection TOCOnline provides from *Empresa → Configurações → Dados API*.
+
 ### Not yet implemented
 
-The following are on the TOCOnline docs sitemap but are **not** exposed as
-typed tools — and our `api_request` escape hatch may not work for them
-either (PDF/email require non-JSON response handling, which the HTTP client
-does not currently support):
-
-- **PDF download** for sales/purchase documents and receipts.
-- **Email send** for documents and receipts.
-- **AT document communication** (Portuguese tax authority reporting).
-- **Finalize/issue** a draft sales or purchase document (no documented
-  endpoint; changing `status` via `api_request` PATCH may work but is
-  untested).
+- **AT document communication** (Portuguese tax authority reporting) —
+  endpoint is `PATCH /api/send_document_at_webservice` but requires a
+  pre-existing communication status/code workflow we haven't mapped.
 - **Settlement linking** between a payment/receipt and the documents it
-  settles (the `create_*_payment`/`create_*_receipt` tools create the
-  payment record itself but do not attach settlement lines).
-- **Product create/update**, **supplier create/update**.
-- **Auxiliary APIs** as typed tools (tax rate descriptors, item families,
-  countries, units of measure, bank accounts, expense categories, series
-  documents) — you can still read them with `api_request` on the
-  corresponding paths, e.g. `api_request method=GET path=/api/countries`.
+  settles — `create_*_payment` / `create_*_receipt` create the payment
+  record itself but don't attach settlement lines. TOCOnline exposes
+  `commercial_*_payment_lines` / `commercial_sales_receipt_lines` for this;
+  use `api_request` until we add typed tools.
+- **Product create/update**, **supplier create/update** — endpoints exist
+  (`POST/PATCH /api/products`, `POST/PATCH /api/suppliers`) and can be
+  called via `api_request`.
+- **Auxiliary APIs** as typed tools (tax descriptors at
+  `/api/tax_descriptors`, item families at `/api/item_families`, countries,
+  units of measure, bank accounts, cash accounts) — all readable via
+  `api_request`.
 
-If any of these becomes important, ask and we'll add a typed tool (with a
-new code path for binary responses in the PDF/email case).
+If any of these becomes important, ask and we'll promote it to a typed tool.
 
 ## Development
 

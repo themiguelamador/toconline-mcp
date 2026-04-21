@@ -93,13 +93,16 @@ class TocClient:
             )
             save_credentials(self._creds)
 
-    def _headers(self) -> dict[str, str]:
+    def _headers(self, overrides: dict[str, str] | None = None) -> dict[str, str]:
         assert self._creds is not None
-        return {
+        headers = {
             "Authorization": f"Bearer {self._creds.access_token}",
             "Accept": _JSONAPI_MEDIA_TYPE,
             "Content-Type": _JSONAPI_MEDIA_TYPE,
         }
+        if overrides:
+            headers.update(overrides)
+        return headers
 
     async def request(
         self,
@@ -108,17 +111,24 @@ class TocClient:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         flatten: bool = True,
     ) -> Any:
+        """Make an authenticated API call.
+
+        `headers` is merged over the default Authorization/Accept/Content-Type
+        — pass `{"Content-Type": "application/json"}` when calling v1
+        endpoints that take flat (non-JSON:API) bodies.
+        """
         await self._ensure_ready()
         await self._refresh_if_needed()
         assert self._client is not None
 
-        response = await self._send(method, path, params=params, json=json)
+        response = await self._send(method, path, params=params, json=json, headers=headers)
         if response.status_code == 401:
             _log.info("Got 401, forcing token refresh and retrying once")
             await self._refresh_if_needed(force=True)
-            response = await self._send(method, path, params=params, json=json)
+            response = await self._send(method, path, params=params, json=json, headers=headers)
         return self._handle_response(response, flatten=flatten)
 
     async def _send(
@@ -128,6 +138,7 @@ class TocClient:
         *,
         params: dict[str, Any] | None,
         json: dict[str, Any] | None,
+        headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         assert self._client is not None
         return await self._client.request(
@@ -135,7 +146,7 @@ class TocClient:
             path if path.startswith("/") else f"/{path}",
             params=params,
             json=json,
-            headers=self._headers(),
+            headers=self._headers(headers),
         )
 
     def _handle_response(self, response: httpx.Response, *, flatten: bool) -> Any:

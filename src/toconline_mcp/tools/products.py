@@ -22,6 +22,10 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         item_code: Annotated[
             str | None, Field(description="Exact match on item_code.")
         ] = None,
+        sort: Annotated[
+            str | None,
+            Field(description="JSON:API sort, e.g. `item_description`, `-created_at`."),
+        ] = None,
     ) -> dict[str, Any]:
         """List products. All filters are exact match."""
         filters = {
@@ -29,7 +33,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             "item_code": item_code,
         }
         return await client.request(
-            "GET", _PATH, params=build_list_params(page_size=page_size, filters=filters)
+            "GET",
+            _PATH,
+            params=build_list_params(page_size=page_size, filters=filters, sort=sort),
         )
 
     @mcp.tool()

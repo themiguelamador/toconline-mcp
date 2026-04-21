@@ -23,15 +23,21 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         date: Annotated[
             str | None, Field(description="Exact date match (YYYY-MM-DD).")
         ] = None,
+        sort: Annotated[
+            str,
+            Field(description="JSON:API sort. Defaults to `-date`."),
+        ] = "-date",
     ) -> dict[str, Any]:
-        """List sales receipts (customer payments) with pagination."""
+        """List sales receipts (customer payments), newest first by default."""
         filters: dict[str, Any] = {}
         if customer_id:
             filters["third_party_id"] = require_id(customer_id, "customer_id")
         if date:
             filters["date"] = require_iso_date(date, "date")
         return await client.request(
-            "GET", _PATH, params=build_list_params(page_size=page_size, filters=filters)
+            "GET",
+            _PATH,
+            params=build_list_params(page_size=page_size, filters=filters, sort=sort),
         )
 
     @mcp.tool()

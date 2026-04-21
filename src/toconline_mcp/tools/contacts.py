@@ -49,18 +49,34 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         mobile_number: Annotated[str | None, Field(description="Mobile phone.")] = None,
         position: Annotated[str | None, Field(description="Job title / role.")] = None,
         customer_id: Annotated[
-            str | None, Field(description="Attach to a customer. Provide one of customer_id or supplier_id.")
+            str | None,
+            Field(description="Attach to a customer. Provide exactly one of customer_id or supplier_id."),
         ] = None,
         supplier_id: Annotated[
-            str | None, Field(description="Attach to a supplier. Provide one of customer_id or supplier_id.")
+            str | None,
+            Field(description="Attach to a supplier. Provide exactly one of customer_id or supplier_id."),
         ] = None,
         is_primary: Annotated[
             bool, Field(description="Whether this is the primary contact.")
         ] = False,
+        categories: Annotated[
+            list[str] | None,
+            Field(description="Contact categories (e.g. ['general']). Defaults to ['general'] if omitted."),
+        ] = None,
     ) -> dict[str, Any]:
-        """Create a contact attached to a customer or supplier."""
+        """Create a contact attached to a customer or supplier.
+
+        Polymorphic association via `contactable_type` ("Customer" | "Supplier")
+        and `contactable_id` attributes.
+        """
         if bool(customer_id) == bool(supplier_id):
             raise ValueError("provide exactly one of customer_id or supplier_id")
+        if customer_id:
+            contactable_type = "Customer"
+            contactable_id = require_id(customer_id, "customer_id")
+        else:
+            contactable_type = "Supplier"
+            contactable_id = require_id(supplier_id, "supplier_id")
         attributes = {
             "name": name,
             "email": email,
@@ -68,13 +84,11 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             "mobile_number": mobile_number,
             "position": position,
             "is_primary": is_primary,
+            "categories": categories or ["general"],
+            "contactable_type": contactable_type,
+            "contactable_id": contactable_id,
         }
-        relationships: dict[str, Any] = {}
-        if customer_id:
-            relationships["customer"] = ("customers", require_id(customer_id, "customer_id"))
-        if supplier_id:
-            relationships["supplier"] = ("suppliers", require_id(supplier_id, "supplier_id"))
-        envelope = build_resource_envelope(_RESOURCE, attributes, relationships=relationships)
+        envelope = build_resource_envelope(_RESOURCE, attributes)
         return await client.request("POST", _PATH, json=envelope)
 
     @mcp.tool()

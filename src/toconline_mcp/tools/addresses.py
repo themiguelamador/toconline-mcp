@@ -24,8 +24,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             str | None, Field(description="Filter to a specific supplier's addresses.")
         ] = None,
     ) -> dict[str, Any]:
-        """List addresses. Normally scope to a customer_id or supplier_id — the
-        unfiltered endpoint returns every address in the company."""
+        """List addresses. Normally scope to a customer_id or supplier_id."""
         filters = {}
         if customer_id:
             filters["customer_id"] = require_id(customer_id, "customer_id")
@@ -48,38 +47,42 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         city: Annotated[str, Field(description="City.")],
         postcode: Annotated[str | None, Field(description="Postcode / ZIP.")] = None,
         region: Annotated[str | None, Field(description="Region / state.")] = None,
-        country_id: Annotated[
-            str | None,
-            Field(description="Country id from /api/countries (e.g. Portugal is typically 181)."),
-        ] = None,
         customer_id: Annotated[
-            str | None, Field(description="Attach to a customer. Provide one of customer_id or supplier_id.")
+            str | None,
+            Field(description="Attach to a customer. Provide exactly one of customer_id or supplier_id."),
         ] = None,
         supplier_id: Annotated[
-            str | None, Field(description="Attach to a supplier. Provide one of customer_id or supplier_id.")
+            str | None,
+            Field(description="Attach to a supplier. Provide exactly one of customer_id or supplier_id."),
         ] = None,
         is_primary: Annotated[
             bool, Field(description="Whether this is the entity's primary address.")
         ] = False,
     ) -> dict[str, Any]:
-        """Create an address attached to a customer or supplier."""
+        """Create an address attached to a customer or supplier.
+
+        TOCOnline uses a polymorphic association — the parent is identified
+        via the `addressable_type` ("Customer" | "Supplier") and
+        `addressable_id` attributes, not a JSON:API relationship.
+        """
         if bool(customer_id) == bool(supplier_id):
             raise ValueError("provide exactly one of customer_id or supplier_id")
+        if customer_id:
+            addressable_type = "Customer"
+            addressable_id = require_id(customer_id, "customer_id")
+        else:
+            addressable_type = "Supplier"
+            addressable_id = require_id(supplier_id, "supplier_id")
         attributes = {
             "address_detail": address_detail,
             "city": city,
             "postcode": postcode,
             "region": region,
             "is_primary": is_primary,
+            "addressable_type": addressable_type,
+            "addressable_id": addressable_id,
         }
-        relationships: dict[str, Any] = {}
-        if customer_id:
-            relationships["customer"] = ("customers", require_id(customer_id, "customer_id"))
-        if supplier_id:
-            relationships["supplier"] = ("suppliers", require_id(supplier_id, "supplier_id"))
-        if country_id:
-            relationships["country"] = ("countries", require_id(country_id, "country_id"))
-        envelope = build_resource_envelope(_RESOURCE, attributes, relationships=relationships)
+        envelope = build_resource_envelope(_RESOURCE, attributes)
         return await client.request("POST", _PATH, json=envelope)
 
     @mcp.tool()

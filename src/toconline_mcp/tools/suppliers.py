@@ -22,6 +22,10 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         tax_registration_number: Annotated[
             str | None, Field(description="Exact VAT/NIF match.")
         ] = None,
+        sort: Annotated[
+            str | None,
+            Field(description="JSON:API sort, e.g. `business_name`, `-created_at`."),
+        ] = None,
     ) -> dict[str, Any]:
         """List suppliers. All filters are exact match."""
         filters = {
@@ -29,7 +33,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             "tax_registration_number": tax_registration_number,
         }
         return await client.request(
-            "GET", _PATH, params=build_list_params(page_size=page_size, filters=filters)
+            "GET",
+            _PATH,
+            params=build_list_params(page_size=page_size, filters=filters, sort=sort),
         )
 
     @mcp.tool()
