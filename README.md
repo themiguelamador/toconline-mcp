@@ -226,23 +226,57 @@ depend on a specific user's filesystem:
 
 ## Tools
 
+34 typed tools plus a generic escape hatch. All filters are exact match —
+TOCOnline does not expose range or substring operators.
+
+### Authentication
 | Tool | Purpose |
 |---|---|
 | `auth_status` | Check whether credentials are configured and when the access token expires. |
 | `login` | Run the OAuth browser flow and store credentials. |
 | `logout` | Delete stored credentials. |
-| `list_customers` | Paged list with substring search on business_name. |
-| `get_customer` | Fetch by id. |
-| `create_customer` | Create a customer record. |
-| `update_customer` | Patch non-null attributes. |
-| `list_suppliers` / `get_supplier` | Suppliers read-only in MVP. |
-| `list_products` / `get_product` | Products read-only in MVP. |
-| `list_sales_documents` | Filter by type / customer / date range. |
-| `get_sales_document` | Single document, optionally with its line items. |
-| `create_sales_document` | Draft document with line items. |
-| `api_request` | Generic JSON:API escape hatch (requires `confirm=true` on writes). |
 
-Responses are flattened from JSON:API, e.g.:
+### Customers, suppliers, products
+| Tool | Purpose |
+|---|---|
+| `list_customers` / `get_customer` / `create_customer` / `update_customer` | Customer CRUD. |
+| `list_suppliers` / `get_supplier` | Suppliers read-only. |
+| `list_products` / `get_product` | Products/services read-only. |
+
+### Addresses & contacts
+Addresses and contacts are separate JSON:API resources with an owning
+`customer_id` or `supplier_id` (exactly one, not both).
+
+| Tool | Purpose |
+|---|---|
+| `list_addresses` / `get_address` / `create_address` / `update_address` / `delete_address` | Address CRUD. Scope listings by `customer_id` or `supplier_id`. |
+| `list_contacts` / `get_contact` / `create_contact` / `update_contact` / `delete_contact` | Contact CRUD with the same scoping. |
+
+`delete_address` / `delete_contact` require `confirm=true`.
+
+### Sales documents & receipts
+| Tool | Purpose |
+|---|---|
+| `list_sales_documents` | Filter by `document_type` / `customer_id` / `date`. |
+| `get_sales_document` | Single document, with its line items merged by default. |
+| `create_sales_document` | Draft document with line items. For credit/debit notes, set `document_type='NC'` or `'ND'` and pass `parent_document_id` to reference the original. |
+| `list_sales_receipts` / `get_sales_receipt` / `create_sales_receipt` | Customer-payment receipts. |
+
+### Purchases
+| Tool | Purpose |
+|---|---|
+| `list_purchase_documents` / `get_purchase_document` / `create_purchase_document` | Supplier invoices. |
+| `list_purchase_payments` / `get_purchase_payment` / `create_purchase_payment` | Supplier payments. |
+
+### Escape hatch
+| Tool | Purpose |
+|---|---|
+| `api_request` | Generic `/api/*` passthrough for endpoints without typed tools. `POST`/`PATCH`/`PUT`/`DELETE` require `confirm=true`. |
+
+### Response shape
+
+Responses are flattened from JSON:API — `data.attributes.*` fields are hoisted
+to the top level, and `relationships.<name>.data.id` becomes `<name>_id`:
 
 ```json
 {
@@ -252,6 +286,31 @@ Responses are flattened from JSON:API, e.g.:
   "meta": {"total": 1}
 }
 ```
+
+### Not yet implemented
+
+The following are on the TOCOnline docs sitemap but are **not** exposed as
+typed tools — and our `api_request` escape hatch may not work for them
+either (PDF/email require non-JSON response handling, which the HTTP client
+does not currently support):
+
+- **PDF download** for sales/purchase documents and receipts.
+- **Email send** for documents and receipts.
+- **AT document communication** (Portuguese tax authority reporting).
+- **Finalize/issue** a draft sales or purchase document (no documented
+  endpoint; changing `status` via `api_request` PATCH may work but is
+  untested).
+- **Settlement linking** between a payment/receipt and the documents it
+  settles (the `create_*_payment`/`create_*_receipt` tools create the
+  payment record itself but do not attach settlement lines).
+- **Product create/update**, **supplier create/update**.
+- **Auxiliary APIs** as typed tools (tax rate descriptors, item families,
+  countries, units of measure, bank accounts, expense categories, series
+  documents) — you can still read them with `api_request` on the
+  corresponding paths, e.g. `api_request method=GET path=/api/countries`.
+
+If any of these becomes important, ask and we'll add a typed tool (with a
+new code path for binary responses in the PDF/email case).
 
 ## Development
 

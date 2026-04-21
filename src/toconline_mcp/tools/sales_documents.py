@@ -82,7 +82,14 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     @mcp.tool()
     async def create_sales_document(
         document_type: Annotated[
-            str, Field(description="Document type code, e.g. FT, FR, NC, FT-FA.")
+            str,
+            Field(
+                description=(
+                    "Document type code. Common: FT (invoice), FR (invoice-receipt), "
+                    "NC (credit note / rectificative), ND (debit note / rectificative), "
+                    "FT-FA (simplified invoice)."
+                )
+            ),
         ],
         customer_id: Annotated[str, Field(description="TOCOnline customer id.")],
         date: Annotated[str, Field(description="ISO date, e.g. 2025-01-15.")],
@@ -90,11 +97,23 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             list[SalesDocumentLine], Field(description="At least one line item.", min_length=1)
         ],
         notes: Annotated[str | None, Field(description="Optional document notes.")] = None,
+        parent_document_id: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "For rectificative documents (NC credit note, ND debit note): id of "
+                    "the original sales document this one rectifies. Creates a "
+                    "`parent_documents` relationship."
+                )
+            ),
+        ] = None,
     ) -> dict[str, Any]:
         """Create a draft sales document with line items.
 
         The document is created as a draft; finalizing/issuing is a separate
-        TOCOnline operation not covered by the MVP.
+        TOCOnline operation not covered by the MVP. For credit/debit notes
+        (rectificative documents), set `document_type='NC'` or `'ND'` and
+        point `parent_document_id` at the original document.
         """
         if not lines:
             raise ValueError("at least one line item is required")
@@ -106,9 +125,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             "notes": notes,
             "lines": [line.model_dump(exclude_none=True) for line in lines],
         }
-        envelope = build_resource_envelope(
-            _DOC_TYPE,
-            attributes,
-            relationships={"customer": ("customers", safe_customer_id)},
-        )
+        relationships: dict[str, Any] = {"customer": ("customers", safe_customer_id)}
+        if parent_document_id:
+            safe_parent = require_id(parent_document_id, "parent_document_id")
+            relationships["parent_documents"] = [(_DOC_TYPE, safe_parent)]
+        envelope = build_resource_envelope(_DOC_TYPE, attributes, relationships=relationships)
         return await client.request("POST", _DOCS_PATH, json=envelope)

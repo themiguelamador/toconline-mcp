@@ -2,5 +2,10 @@
   "enabledMcpjsonServers": [
     "github"
   ],
-  "enableAllProjectMcpServers": true
+  "enableAllProjectMcpServers": true,
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api-docs.toconline.pt)"
+    ]
+  }
 }
