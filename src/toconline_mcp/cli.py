@@ -26,6 +26,10 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("whoami", help="Show the currently configured credential profile.")
     sub.add_parser("serve", help="Run the MCP stdio server (default if no command given).")
 
+    gmail_setup = sub.add_parser("gmail-setup", help="One-time Google OAuth login for Gmail.")
+    gmail_setup.add_argument("--port", type=int, default=None, help="Redirect URI port (default 53683).")
+    gmail_setup.add_argument("--no-browser", action="store_true", help="Print URL instead of launching a browser.")
+
     return parser
 
 
@@ -57,6 +61,15 @@ def _cmd_serve() -> int:
     return 0
 
 
+def _cmd_gmail_setup(port: int | None, no_browser: bool) -> int:
+    from toconline_mcp.gmail.setup import prompt_gmail_inputs, run_gmail_setup
+    inputs = prompt_gmail_inputs()
+    if port is not None:
+        inputs = dataclasses.replace(inputs, redirect_port=port)
+    run_gmail_setup(inputs, open_browser=not no_browser)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -68,6 +81,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_whoami()
         if command == "serve":
             return _cmd_serve()
+        if command == "gmail-setup":
+            return _cmd_gmail_setup(args.port, args.no_browser)
         parser.error(f"unknown command: {command}")
     except TocError as exc:
         print(str(exc), file=sys.stderr)

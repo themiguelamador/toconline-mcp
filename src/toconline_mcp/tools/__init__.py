@@ -12,6 +12,7 @@ from toconline_mcp.tools import (
     customers,
     document_actions,
     generic,
+    gmail_tools,
     products,
     purchases,
     sales_documents,
@@ -34,3 +35,4 @@ def register_all(mcp: FastMCP, client: TocClient) -> None:
     bank.register(mcp, client)
     document_actions.register(mcp, client)
     generic.register(mcp, client)
+    gmail_tools.register(mcp)

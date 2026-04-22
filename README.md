@@ -319,6 +319,76 @@ Postman collection TOCOnline provides from *Empresa → Configurações → Dado
 
 If any of these becomes important, ask and we'll promote it to a typed tool.
 
+## Gmail integration (optional)
+
+This MCP can also search Gmail and download attachments — useful for pulling
+supplier-invoice PDFs out of email and archiving them into a folder (local
+or Google-Drive/iCloud-synced). It's completely independent of the TOCOnline
+tools; use it or don't.
+
+### One-time Google Cloud setup
+
+1. Go to <https://console.cloud.google.com/> and create (or pick) a project.
+2. **APIs & Services → Library** → enable **Gmail API**.
+3. **APIs & Services → OAuth consent screen** → set up a "Desktop"/"External"
+   consent screen with your email as a test user.
+4. **APIs & Services → Credentials → Create Credentials → OAuth client ID**
+   → *Desktop app* (or *Web app*). Register
+   `http://127.0.0.1:53683/callback` as an Authorized redirect URI.
+5. Copy the **Client ID** and **Client secret**.
+
+### Log in
+
+Either from the CLI:
+
+```bash
+toconline-mcp gmail-setup
+```
+
+or from Claude (same shape as TOCOnline's `login`):
+
+> Log in to Gmail. client_id = `…`, client_secret = `…`
+
+Tokens are saved to `~/.config/toconline-mcp/gmail-credentials.json` (0600),
+separate from the TOCOnline credentials.
+
+### Scope
+
+`gmail.modify` — covers reading messages, downloading attachments, and
+adding/removing labels. It does **not** allow permanent deletion or sending
+messages. Narrower scopes (like `gmail.readonly` or `gmail.labels`) can't
+label messages, which breaks the "mark as imported" workflow.
+
+### Gmail tools (10)
+
+| Tool | Purpose |
+|---|---|
+| `gmail_auth_status` / `gmail_login` / `gmail_logout` | Auth lifecycle (mirrors TOCOnline's auth trio). |
+| `gmail_search_messages` | Search with Gmail query syntax (`has:attachment filename:pdf from:billing@…`). Returns compact metadata + attachment list per message. |
+| `gmail_get_message` | Fetch a single message's metadata + attachment list. |
+| `gmail_download_attachment` | Download one attachment to an absolute local path. Handles filename collisions with ` (2)`, ` (3)`… suffixes. |
+| `gmail_list_labels` / `gmail_create_label` | Discover and create labels. |
+| `gmail_add_label_to_message` / `gmail_remove_label_from_message` | Mark messages as processed (e.g. apply an `Imported/TOCOnline` label). |
+
+### Example workflow: bulk-download supplier invoices
+
+Ask Claude:
+
+> Search my Gmail for unread messages from `billing@` senders with PDF
+> attachments since 2026-04-01. For each one, download every PDF to
+> `/Users/me/Google Drive/Invoices/2026-04/` and apply the label
+> `Imported/TOCOnline`. Then print a summary table.
+
+Claude uses: `gmail_search_messages` → `gmail_list_labels` (or `gmail_create_label`
+if missing) → for each result `gmail_download_attachment` + `gmail_add_label_to_message`.
+Using a Google-Drive-synced folder for `save_dir` gives you cloud sync for free.
+
+### Gmail env vars
+
+- `TOCONLINE_GMAIL_CREDENTIALS_PATH` — override the credentials file location.
+- `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` — skip the CLI prompts during
+  `gmail-setup`.
+
 ## Development
 
 ```bash

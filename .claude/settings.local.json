@@ -3,7 +3,9 @@
     "allow": [
       "WebFetch(domain:api-docs.toconline.pt)",
       "Bash(.venv/bin/pytest -q)",
-      "Bash(uv tool *)"
+      "Bash(uv tool *)",
+      "Bash(/Users/miguelamador/Documents/GitHub/toconline/.venv/bin/python /tmp/listall.py)",
+      "Bash(/Users/miguelamador/.local/bin/toconline-mcp --help)"
     ]
   },
   "enableAllProjectMcpServers": true,
