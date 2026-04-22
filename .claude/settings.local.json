@@ -1,11 +1,13 @@
 {
-  "enabledMcpjsonServers": [
-    "github"
-  ],
-  "enableAllProjectMcpServers": true,
   "permissions": {
     "allow": [
-      "WebFetch(domain:api-docs.toconline.pt)"
+      "WebFetch(domain:api-docs.toconline.pt)",
+      "Bash(.venv/bin/pytest -q)",
+      "Bash(uv tool *)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "github"
+  ]
 }
