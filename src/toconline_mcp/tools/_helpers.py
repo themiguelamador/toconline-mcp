@@ -25,23 +25,26 @@ def require_iso_date(value: str, field: str) -> str:
 
 def build_list_params(
     page_size: int | None = None,
+    page_number: int | None = None,
     filters: dict[str, Any] | None = None,
     sort: str | None = None,
+    fields: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build query params for a TOCOnline list endpoint.
 
-    TOCOnline's JSON:API implementation supports **equality filters only**
-    via the `filter[field]=value` syntax. Comparison operators (`gte`, `lte`,
-    `eq`), substring search, and nested `filter[field][op]=...` forms all
-    return HTTP 400 (system error JA011).
-
-    `sort` follows the JSON:API convention: comma-separated field names,
-    optionally prefixed with `-` for descending. Examples: `-date`,
-    `date,document_no`, `-created_at`.
+    Supports the JSON:API standard quartet:
+      - `page[size]` / `page[number]` — pagination (page_size capped at 500).
+      - `filter[field]=value` — equality filters only; TOCOnline rejects
+        comparison operators with JA011.
+      - `sort` — comma-separated fields, prefix with `-` for descending.
+      - `fields[<type>]=f1,f2,...` — sparse fieldsets (huge token savings on
+        records with many attributes, e.g. sales docs with 117 fields).
     """
     params: dict[str, Any] = {}
     if page_size is not None:
-        params["page[size]"] = max(1, min(int(page_size), 100))
+        params["page[size]"] = max(1, min(int(page_size), 500))
+    if page_number is not None:
+        params["page[number]"] = max(1, int(page_number))
     if filters:
         for field, value in filters.items():
             if value is None or value == "":
@@ -49,4 +52,8 @@ def build_list_params(
             params[f"filter[{field}]"] = str(value)
     if sort:
         params["sort"] = sort
+    if fields:
+        for resource_type, field_list in fields.items():
+            if field_list:
+                params[f"fields[{resource_type}]"] = field_list
     return params

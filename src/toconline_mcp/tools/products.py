@@ -14,17 +14,19 @@ _PATH = "/api/products"
 def register(mcp: FastMCP, client: TocClient) -> None:
     @mcp.tool()
     async def list_products(
-        page_size: Annotated[int, Field(description="Items per page (1-100).", ge=1, le=100)] = 25,
+        page_size: Annotated[int, Field(description="Items per page (1-500).", ge=1, le=500)] = 25,
+        page_number: Annotated[int, Field(description="1-based page number.", ge=1)] = 1,
         item_description: Annotated[
-            str | None,
-            Field(description="Exact match on item_description."),
+            str | None, Field(description="Exact match on item_description.")
         ] = None,
         item_code: Annotated[
             str | None, Field(description="Exact match on item_code.")
         ] = None,
         sort: Annotated[
-            str | None,
-            Field(description="JSON:API sort, e.g. `item_description`, `-created_at`."),
+            str | None, Field(description="JSON:API sort, e.g. `item_description`, `-created_at`.")
+        ] = None,
+        fields: Annotated[
+            str | None, Field(description="Comma-separated subset of fields to return.")
         ] = None,
     ) -> dict[str, Any]:
         """List products. All filters are exact match."""
@@ -35,7 +37,11 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         return await client.request(
             "GET",
             _PATH,
-            params=build_list_params(page_size=page_size, filters=filters, sort=sort),
+            params=build_list_params(
+                page_size=page_size, page_number=page_number,
+                filters=filters, sort=sort,
+                fields={"products": fields} if fields else None,
+            ),
         )
 
     @mcp.tool()

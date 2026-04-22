@@ -16,12 +16,17 @@ _PATH = "/api/addresses"
 def register(mcp: FastMCP, client: TocClient) -> None:
     @mcp.tool()
     async def list_addresses(
-        page_size: Annotated[int, Field(description="Items per page (1-100).", ge=1, le=100)] = 25,
+        page_size: Annotated[int, Field(description="Items per page (1-500).", ge=1, le=500)] = 25,
+        page_number: Annotated[int, Field(description="1-based page number.", ge=1)] = 1,
         customer_id: Annotated[
             str | None, Field(description="Filter to a specific customer's addresses.")
         ] = None,
         supplier_id: Annotated[
             str | None, Field(description="Filter to a specific supplier's addresses.")
+        ] = None,
+        sort: Annotated[str | None, Field(description="JSON:API sort.")] = None,
+        fields: Annotated[
+            str | None, Field(description="Comma-separated subset of fields to return.")
         ] = None,
     ) -> dict[str, Any]:
         """List addresses. Normally scope to a customer_id or supplier_id."""
@@ -31,7 +36,13 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         if supplier_id:
             filters["supplier_id"] = require_id(supplier_id, "supplier_id")
         return await client.request(
-            "GET", _PATH, params=build_list_params(page_size=page_size, filters=filters)
+            "GET",
+            _PATH,
+            params=build_list_params(
+                page_size=page_size, page_number=page_number,
+                filters=filters, sort=sort,
+                fields={_RESOURCE: fields} if fields else None,
+            ),
         )
 
     @mcp.tool()

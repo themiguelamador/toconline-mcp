@@ -36,7 +36,8 @@ def register(mcp: FastMCP, client: TocClient) -> None:
 
     @mcp.tool()
     async def list_purchase_documents(
-        page_size: Annotated[int, Field(description="Items per page (1-100).", ge=1, le=100)] = 25,
+        page_size: Annotated[int, Field(description="Items per page (1-500).", ge=1, le=500)] = 25,
+        page_number: Annotated[int, Field(description="1-based page number.", ge=1)] = 1,
         document_type: Annotated[
             str | None,
             Field(description="Exact document type code (supplier-invoice codes vary)."),
@@ -49,9 +50,11 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Exact date match (YYYY-MM-DD). TOCOnline does not support ranges."),
         ] = None,
         sort: Annotated[
-            str,
-            Field(description="JSON:API sort. Defaults to `-date` (newest first). Prefix with `-` for descending."),
-        ] = "-date",
+            str, Field(description="JSON:API sort. Defaults to `-date` (newest first).")
+        ] = "-date,-id",
+        fields: Annotated[
+            str | None, Field(description="Comma-separated subset of fields to return.")
+        ] = None,
     ) -> dict[str, Any]:
         """List commercial purchase documents, newest first by default."""
         filters: dict[str, Any] = {}
@@ -64,7 +67,11 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         return await client.request(
             "GET",
             _DOCS_PATH,
-            params=build_list_params(page_size=page_size, filters=filters, sort=sort),
+            params=build_list_params(
+                page_size=page_size, page_number=page_number,
+                filters=filters, sort=sort,
+                fields={"commercial_purchases_documents": fields} if fields else None,
+            ),
         )
 
     @mcp.tool()
@@ -142,17 +149,18 @@ def register(mcp: FastMCP, client: TocClient) -> None:
 
     @mcp.tool()
     async def list_purchase_payments(
-        page_size: Annotated[int, Field(description="Items per page (1-100).", ge=1, le=100)] = 25,
+        page_size: Annotated[int, Field(description="Items per page (1-500).", ge=1, le=500)] = 25,
+        page_number: Annotated[int, Field(description="1-based page number.", ge=1)] = 1,
         supplier_id: Annotated[
             str | None, Field(description="Filter by supplier id (exact match).")
         ] = None,
         date: Annotated[
             str | None, Field(description="Exact date match (YYYY-MM-DD).")
         ] = None,
-        sort: Annotated[
-            str,
-            Field(description="JSON:API sort. Defaults to `-date`."),
-        ] = "-date",
+        sort: Annotated[str, Field(description="JSON:API sort. Defaults to `-date`.")] = "-date",
+        fields: Annotated[
+            str | None, Field(description="Comma-separated subset of fields to return.")
+        ] = None,
     ) -> dict[str, Any]:
         """List purchase payments, newest first by default."""
         filters: dict[str, Any] = {}
@@ -163,7 +171,11 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         return await client.request(
             "GET",
             _PAYMENTS_PATH,
-            params=build_list_params(page_size=page_size, filters=filters, sort=sort),
+            params=build_list_params(
+                page_size=page_size, page_number=page_number,
+                filters=filters, sort=sort,
+                fields={_PAY_TYPE: fields} if fields else None,
+            ),
         )
 
     @mcp.tool()

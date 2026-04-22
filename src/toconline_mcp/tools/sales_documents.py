@@ -38,7 +38,10 @@ class SalesDocumentLine(BaseModel):
 def register(mcp: FastMCP, client: TocClient) -> None:
     @mcp.tool()
     async def list_sales_documents(
-        page_size: Annotated[int, Field(description="Items per page (1-100).", ge=1, le=100)] = 25,
+        page_size: Annotated[int, Field(description="Items per page (1-500).", ge=1, le=500)] = 25,
+        page_number: Annotated[
+            int, Field(description="1-based page number for paging past the first page.", ge=1)
+        ] = 1,
         document_type: Annotated[
             str | None,
             Field(description="Exact document type code, e.g. FT (invoice), FR (receipt), NC (credit note)."),
@@ -55,12 +58,25 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(
                 description=(
                     "JSON:API sort expression. Prefix with `-` for descending. "
-                    "Defaults to `-date` (newest first). Examples: `-date`, `date,document_no`, `-id`."
+                    "Defaults to `-date`. Examples: `-date`, `date,document_no`, `-id`, `-gross_total`."
                 )
             ),
-        ] = "-date",
+        ] = "-date,-id",
+        fields: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Comma-separated subset of fields to return. Hugely reduces response size — "
+                    "sales docs have 117 fields. Common subset: `document_no,date,gross_total,status,customer_id`."
+                )
+            ),
+        ] = None,
     ) -> dict[str, Any]:
-        """List commercial sales documents, newest first by default."""
+        """List commercial sales documents, newest first by default.
+
+        Use `page_number` + `page_size` to paginate, and `fields` to limit
+        the response to just the columns you need.
+        """
         filters: dict[str, Any] = {}
         if document_type:
             filters["document_type"] = document_type
@@ -71,7 +87,11 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         return await client.request(
             "GET",
             _DOCS_PATH,
-            params=build_list_params(page_size=page_size, filters=filters, sort=sort),
+            params=build_list_params(
+                page_size=page_size, page_number=page_number,
+                filters=filters, sort=sort,
+                fields={_DOC_TYPE: fields} if fields else None,
+            ),
         )
 
     @mcp.tool()
