@@ -8,7 +8,13 @@ import httpx
 import pytest
 import respx
 
-from toconline_mcp.gmail.client import GmailClient, _b64url_decode, _sanitize_filename
+from toconline_mcp.gmail.client import (
+    GmailClient,
+    _b64url_decode,
+    _ensure_extension,
+    _extension_for_mime,
+    _sanitize_filename,
+)
 from toconline_mcp.gmail.store import GmailCredentials, save_gmail_credentials
 from toconline_mcp.util.errors import ApiError, AuthError
 
@@ -53,8 +59,10 @@ def test_sanitize_filename_strips_path_separators_and_specials():
 
 
 def test_sanitize_filename_falls_back_on_empty():
-    assert _sanitize_filename("") == "attachment.bin"
-    assert _sanitize_filename("...") == "attachment.bin"
+    # Fallback has no extension — it's the caller's job (iter_attachment_parts /
+    # gmail_download_attachment) to add the right extension from mime_type.
+    assert _sanitize_filename("") == "attachment"
+    assert _sanitize_filename("...") == "attachment"
 
 
 def test_unique_save_path_appends_suffix_when_exists(tmp_path: Path):
@@ -90,6 +98,80 @@ def test_iter_attachment_parts_recurses():
         ("invoice.pdf", "application/pdf", "AID_PDF", 12345),
         ("logo.png", "image/png", "AID_PNG", 400),
     ]
+
+
+def test_iter_attachment_parts_fabricates_name_when_missing():
+    payload = {
+        "parts": [
+            {
+                "mimeType": "application/pdf",
+                "filename": "",  # sender didn't set a filename (inline-ish PDF)
+                "body": {"attachmentId": "AID_NO_NAME", "size": 99},
+            },
+            {
+                "mimeType": "application/octet-stream",
+                "filename": "",
+                "body": {"attachmentId": "AID_UNKNOWN", "size": 1},
+            },
+        ]
+    }
+    atts = list(GmailClient.iter_attachment_parts(payload))
+    assert atts == [
+        ("attachment.pdf", "application/pdf", "AID_NO_NAME", 99),
+        ("attachment.bin", "application/octet-stream", "AID_UNKNOWN", 1),
+    ]
+
+
+def test_iter_attachment_parts_upgrades_bin_extension_from_mime():
+    payload = {
+        "parts": [
+            {
+                "mimeType": "application/pdf",
+                "filename": "invoice.bin",  # mislabeled by sender
+                "body": {"attachmentId": "AID", "size": 10},
+            }
+        ]
+    }
+    atts = list(GmailClient.iter_attachment_parts(payload))
+    assert atts == [("invoice.pdf", "application/pdf", "AID", 10)]
+
+
+def test_extension_for_mime_known_types():
+    assert _extension_for_mime("application/pdf") == ".pdf"
+    assert _extension_for_mime("image/jpeg") == ".jpg"
+    assert _extension_for_mime("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") == ".xlsx"
+
+
+def test_extension_for_mime_returns_none_for_octet_stream():
+    # octet-stream means "unknown binary" — we must NOT turn it into .bin,
+    # because that would silently undo user-provided sensible filenames.
+    assert _extension_for_mime("application/octet-stream") is None
+    assert _extension_for_mime("") is None
+    assert _extension_for_mime(None) is None
+
+
+def test_extension_for_mime_strips_parameters():
+    assert _extension_for_mime("application/pdf; charset=binary") == ".pdf"
+
+
+def test_ensure_extension_keeps_good_filenames_untouched():
+    assert _ensure_extension("invoice.pdf", "application/pdf") == "invoice.pdf"
+    assert _ensure_extension("report.docx", "application/pdf") == "report.docx"  # trust sender
+
+
+def test_ensure_extension_adds_when_missing():
+    assert _ensure_extension("invoice", "application/pdf") == "invoice.pdf"
+    assert _ensure_extension("photo", "image/jpeg") == "photo.jpg"
+
+
+def test_ensure_extension_upgrades_bin():
+    assert _ensure_extension("invoice.bin", "application/pdf") == "invoice.pdf"
+    assert _ensure_extension("attachment.bin", "image/png") == "attachment.png"
+
+
+def test_ensure_extension_noop_when_mime_unknown():
+    assert _ensure_extension("blob.bin", "application/octet-stream") == "blob.bin"
+    assert _ensure_extension("blob", None) == "blob"
 
 
 def test_extract_message_metadata_indexes_headers_case_insensitive():

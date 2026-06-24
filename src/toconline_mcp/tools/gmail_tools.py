@@ -183,28 +183,46 @@ def register(mcp: FastMCP) -> None:
             ),
         ] = None,
     ) -> dict[str, Any]:
-        """Download one attachment to `save_dir`. Returns the saved path and size."""
+        """Download one attachment to `save_dir`. Returns the saved path and size.
+
+        Filename resolution:
+          * If `filename` is not provided, we fetch the message and look up the
+            attachment part — using both its filename header and its MIME type
+            to produce a meaningful extension (e.g. `.pdf`, `.jpg`, `.xlsx`).
+          * A user-provided `filename` is used as-is unless it lacks an
+            extension or ends in `.bin` — then the part's MIME type supplies
+            the correct extension.
+        """
+        from toconline_mcp.gmail.client import _ensure_extension
+
         directory = Path(save_dir).expanduser()
         if not directory.is_absolute():
             raise ValueError("save_dir must be an absolute path")
         if not directory.is_dir():
             raise ValueError(f"save_dir does not exist or is not a directory: {directory}")
 
-        if not filename:
-            msg = await _client.get_message(message_id, fmt="full")
-            filename = next(
-                (fn for (fn, _mt, aid, _sz) in _client.iter_attachment_parts(msg.get("payload"))
-                 if aid == attachment_id),
-                "attachment.bin",
-            )
+        # Look up the part once — we need its mime_type regardless of whether
+        # the caller passed a filename.
+        msg = await _client.get_message(message_id, fmt="full")
+        part = next(
+            ((fn, mt) for (fn, mt, aid, _sz) in _client.iter_attachment_parts(msg.get("payload"))
+             if aid == attachment_id),
+            None,
+        )
+        part_filename = part[0] if part else None
+        part_mime_type = part[1] if part else None
+
+        resolved = filename or part_filename or "attachment"
+        resolved = _ensure_extension(resolved, part_mime_type)
 
         data = await _client.get_attachment_bytes(message_id, attachment_id)
-        path = _client.unique_save_path(directory, filename)
+        path = _client.unique_save_path(directory, resolved)
         path.write_bytes(data)
         return {
             "saved_path": str(path),
             "size": len(data),
             "filename": path.name,
+            "mime_type": part_mime_type,
         }
 
     # ---------- Labels ----------

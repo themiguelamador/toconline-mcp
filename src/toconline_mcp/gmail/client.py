@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import mimetypes
 import re
 import time
 from pathlib import Path
@@ -26,8 +27,61 @@ _REFRESH_MARGIN_SECONDS = 120
 # Replace everything else with `_`. Also strip any leading `.` / path traversal.
 _SAFE_CHAR = re.compile(r"[^A-Za-z0-9 ._\-()]")
 
+# mimetypes.guess_extension is inconsistent across Python versions (e.g. returns
+# `.jpe` instead of `.jpg`, no entry for `.docx`/`.xlsx`), so keep an explicit
+# override for the types we actually see in invoice workflows.
+_MIME_EXT_OVERRIDES = {
+    "application/pdf": ".pdf",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/heic": ".heic",
+    "image/webp": ".webp",
+    "application/zip": ".zip",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.ms-excel": ".xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "text/csv": ".csv",
+    "text/plain": ".txt",
+    "text/html": ".html",
+    "application/json": ".json",
+    "application/xml": ".xml",
+    "text/xml": ".xml",
+}
 
-def _sanitize_filename(name: str, fallback: str = "attachment.bin") -> str:
+
+def _extension_for_mime(mime_type: str | None) -> str | None:
+    """Return a leading-dot extension derived from a MIME type, or None.
+
+    Returns None (not `.bin`) for `application/octet-stream` — that's the
+    "I don't know what this is" MIME type and shouldn't poison the filename.
+    """
+    if not mime_type:
+        return None
+    base = mime_type.split(";")[0].strip().lower()
+    if base in _MIME_EXT_OVERRIDES:
+        return _MIME_EXT_OVERRIDES[base]
+    if base in ("application/octet-stream", "application/binary", ""):
+        return None
+    return mimetypes.guess_extension(base)
+
+
+def _ensure_extension(filename: str, mime_type: str | None) -> str:
+    """If `filename` has no extension (or a generic `.bin`), fix it from mime_type."""
+    current = Path(filename).suffix.lower()
+    if current and current != ".bin":
+        return filename
+    ext = _extension_for_mime(mime_type)
+    if not ext:
+        return filename
+    if current == ".bin":
+        return str(Path(filename).with_suffix(ext))
+    return filename + ext
+
+
+def _sanitize_filename(name: str, fallback: str = "attachment") -> str:
     if not name:
         return fallback
     name = name.replace("/", "_").replace("\\", "_")
@@ -254,17 +308,26 @@ class GmailClient:
     def iter_attachment_parts(payload: dict[str, Any] | None):
         """Yield (filename, mime_type, attachment_id, size) for each attachment part.
 
-        Recurses into multipart structures. Ignores parts without an
-        attachmentId (inline text/html body parts).
+        Recurses into multipart structures. Yields for any part with an
+        `attachmentId` — including parts that lack a filename header (some
+        forwarded/inline attachments), because the caller can still recover a
+        sensible filename from the mime_type.
         """
         if not isinstance(payload, dict):
             return
         body = payload.get("body") or {}
         att_id = body.get("attachmentId")
-        filename = payload.get("filename") or ""
-        if att_id and filename:
-            yield (filename, payload.get("mimeType") or "application/octet-stream",
-                   att_id, body.get("size") or 0)
+        if att_id:
+            filename = payload.get("filename") or ""
+            mime_type = payload.get("mimeType") or "application/octet-stream"
+            # Ensure the reported filename has a sensible extension; if the
+            # part has no filename at all, fabricate one from the mime_type.
+            if filename:
+                filename = _ensure_extension(filename, mime_type)
+            else:
+                ext = _extension_for_mime(mime_type) or ".bin"
+                filename = f"attachment{ext}"
+            yield (filename, mime_type, att_id, body.get("size") or 0)
         for child in payload.get("parts") or []:
             yield from GmailClient.iter_attachment_parts(child)
 

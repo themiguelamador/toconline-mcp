@@ -8,6 +8,7 @@ from toconline_mcp import __version__
 from toconline_mcp.auth.setup import prompt_inputs, run_setup
 from toconline_mcp.auth.store import load_credentials
 from toconline_mcp.config import credentials_path
+from toconline_mcp.envfile import load_env
 from toconline_mcp.util.errors import TocError
 
 
@@ -71,6 +72,7 @@ def _cmd_gmail_setup(port: int | None, no_browser: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_env()  # ~/.config/toconline-mcp/.env → os.environ (real env wins)
     parser = _build_parser()
     args = parser.parse_args(argv)
     command = args.command or "serve"

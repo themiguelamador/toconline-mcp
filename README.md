@@ -1,5 +1,10 @@
 # TOCOnline MCP
 
+> **Unofficial.** This is an independent, community-built project. It is **not**
+> affiliated with, endorsed by, or supported by TOCOnline or Cloudware S.A.
+> "TOCOnline" is a trademark of its respective owner. Use at your own risk —
+> see the [warranty disclaimer](#license).
+
 Local [MCP](https://modelcontextprotocol.io) server wrapping the [TOCOnline](https://toconline.pt)
 accounting/invoicing API. Lets AI assistants list customers, look up products, draft
 sales documents, and call arbitrary TOCOnline endpoints on your behalf — after a
@@ -389,6 +394,54 @@ Using a Google-Drive-synced folder for `save_dir` gives you cloud sync for free.
 - `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` — skip the CLI prompts during
   `gmail-setup`.
 
+## Config file (`~/.config/toconline-mcp/.env`)
+
+Rather than exporting env vars in your shell every time, drop them in a
+`.env` file and the MCP loads it at startup. Values from real environment
+variables always win — the file is a fallback.
+
+Loader checks these paths in order (first existing one wins):
+
+1. Whatever `TOCONLINE_ENV_FILE` points at (if set).
+2. `~/.config/toconline-mcp/.env`  — primary location (next to `credentials.json`).
+3. `./.env` in the current working directory (dev convenience).
+
+Example file — all fields optional, include only what you want cached:
+
+```bash
+# ~/.config/toconline-mcp/.env
+
+# --- TOCOnline ---
+TOCONLINE_CLIENT_ID=ptNNNNNNNNN_cNNNNNN-xxxxxxxxxxxxxxxx
+TOCONLINE_CLIENT_SECRET=your-rotated-secret
+TOCONLINE_AUTH_URL=https://app14.toconline.pt/oauth/auth
+TOCONLINE_TOKEN_URL=https://app14.toconline.pt/oauth/token
+TOCONLINE_API_BASE=https://api14.toconline.pt
+
+# --- Gmail (Google OAuth client from console.cloud.google.com) ---
+GMAIL_CLIENT_ID=1234...apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxx
+```
+
+Format:
+- `KEY=VALUE` per line.
+- `#` comments and blank lines are fine.
+- Quote values with spaces: `NAME="with spaces"`.
+- `export KEY=VALUE` is accepted (for shell-compatibility).
+- **No variable interpolation** (`$VAR` / `${VAR}`) — export from shell if you need that.
+
+After creating the file, `toconline-mcp setup` and `toconline-mcp gmail-setup`
+skip the interactive prompts for any field the file already provides.
+
+**Permissions**: the file contains OAuth client secrets, which are less
+sensitive than access tokens but still not public. Chmod it:
+
+```bash
+chmod 600 ~/.config/toconline-mcp/.env
+```
+
+The MCP prints a `warning:` on stderr if it detects looser permissions.
+
 ## Development
 
 ```bash
@@ -401,6 +454,61 @@ Environment variables:
 
 - `TOCONLINE_CREDENTIALS_PATH` — override the credentials file location.
 - `TOCONLINE_LOG_LEVEL` — `DEBUG`, `INFO`, `WARNING`, etc. Logs go to stderr.
+
+### Iteration workflow (picking up code changes)
+
+`uv tool install --reinstall` updates the binary on disk, but **does not
+restart already-running MCP processes** — Python imports modules at startup,
+so a live server keeps serving the old code until killed. After editing the
+source:
+
+```bash
+# 1. Run the test suite (catches regressions before they hit the live server)
+pytest
+
+# 2. Refresh the installed launcher
+uv tool install --from . toconline-mcp --reinstall
+
+# 3. Find Claude Desktop's MCP server process and kill it
+ps aux | grep toconline-mcp | grep -v grep
+kill <pid>
+
+# 4. Start a new chat in Claude Desktop (Cmd-N). The first tool call
+#    in that new chat causes Claude Desktop to respawn the MCP with the
+#    new code — and the new chat's LLM is given the fresh tool list.
+```
+
+#### Why "new chat" matters even more than "kill the server"
+
+There are two layers that cache things:
+
+1. **The MCP server process** caches the registered tool list in memory
+   (modules are imported at startup). Killing the process forces a
+   respawn that re-imports the latest code.
+2. **The chat session** caches the tool list it got from the server at
+   chat start, baked into the LLM's context. Newly-added tools don't
+   appear in an *existing* chat even after the server respawns.
+
+So if you've added a tool (`list_services` for example) and you want the
+LLM to be able to call it, you need both:
+- The kill+respawn (so the server exposes the new tool at all), AND
+- A new chat (so the LLM is told the new tool exists).
+
+Editing an existing tool's behaviour or fixing a bug is different — the
+tool's name is the same, the LLM already knows about it, so just kill+respawn
+is enough; the next call hits the new code. **Adding** or **renaming** tools
+requires a new chat.
+
+The same applies to Claude Code: the deferred tools list shown at session
+start is locked in for that chat. New tools require a new Claude Code session
+(`/clear` or starting fresh).
+
+#### Stale processes
+
+Stray `uvx toconline-mcp` processes from old terminals can linger and serve
+stale code. `ps aux | grep toconline-mcp` shows them; `kill <pid>` clears
+them. They're harmless when idle but confusing if you `claude mcp add` more
+than one server pointing at the same binary.
 
 ## Security
 
