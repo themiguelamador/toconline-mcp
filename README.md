@@ -10,6 +10,35 @@ accounting/invoicing API. Lets AI assistants list customers, look up products, d
 sales documents, and call arbitrary TOCOnline endpoints on your behalf — after a
 one-time OAuth login.
 
+## Quick start
+
+The whole setup is four steps. Each links to its full section below.
+
+1. **Install the launcher** (needs Python 3.11+ and [`uv`](https://github.com/astral-sh/uv)):
+   ```bash
+   git clone https://github.com/themiguelamador/toconline-mcp.git
+   cd toconline-mcp && uv tool install --from . toconline-mcp
+   ```
+   → puts a `toconline-mcp` launcher on your `PATH`. [Details](#install).
+
+2. **Get your TOCOnline API credentials** — in the TOCOnline web app,
+   *Empresa → Configurações → Dados API*, request access and set the redirect
+   URL to `http://127.0.0.1:53682/callback`. You'll end up with five values
+   (`client_id`, `client_secret`, two OAuth URLs, an API URL).
+   [Details](#getting-toconline-api-credentials).
+
+3. **Register the server with your client** — one line for Claude Code, a small
+   JSON block for Claude Desktop. [Details](#register-with-claude).
+
+4. **Log in** — ask your assistant "Log in to TOCOnline" (paste the five
+   values), or run `toconline-mcp setup`. A browser opens, you approve, done.
+   [Details](#4-log-in).
+
+That's it — read-only use works on any plan. Creating/editing documents needs
+an active GC license. **Gmail is a separate, optional add-on** for archiving
+invoice PDFs from email — skip it unless you want it
+([details](#gmail-integration-optional)).
+
 ## Status
 
 Alpha. Covers the most common read and write operations for customers, suppliers,
@@ -32,7 +61,7 @@ hatch.
 Not yet published to PyPI — install from source:
 
 ```bash
-git clone https://github.com/miguelamador/toconline-mcp.git
+git clone https://github.com/themiguelamador/toconline-mcp.git
 cd toconline-mcp
 
 # Recommended: uv
@@ -326,16 +355,20 @@ If any of these becomes important, ask and we'll promote it to a typed tool.
 
 ## Gmail integration (optional)
 
-This MCP can also search Gmail and download attachments — useful for pulling
-supplier-invoice PDFs out of email and archiving them into a folder (local
-or Google-Drive/iCloud-synced). It's completely independent of the TOCOnline
-tools; use it or don't.
+**Most people don't need this.** It's a separate add-on for one workflow:
+pulling supplier-invoice PDFs out of email and archiving them into a folder
+(local or Google-Drive/iCloud-synced), so you can then enter them in TOCOnline.
+It's invoice-archiving only — not a general Gmail client (no send, no delete).
+Completely independent of the TOCOnline tools.
 
-> **Off by default.** The Gmail tools are only registered once Gmail
-> credentials exist (or you set `TOCONLINE_GMAIL=1`). So the first login must
-> go through the CLI — `toconline-mcp gmail-setup` — after which a restart
-> exposes the in-Claude `gmail_*` tools. If you don't use Gmail, these 10
-> tools never appear.
+> **Off by default — nothing to do if you don't want it.** The 10 `gmail_*`
+> tools only appear once Gmail credentials exist (or you set `TOCONLINE_GMAIL=1`).
+> If you do want it, the three steps are below:
+>
+> 1. **One-time Google Cloud setup** — create an OAuth client (you bring your
+>    own Google credentials).
+> 2. **Log in once via the CLI** — `toconline-mcp gmail-setup`.
+> 3. **Restart your client** — the `gmail_*` tools now show up.
 
 ### One-time Google Cloud setup
 
