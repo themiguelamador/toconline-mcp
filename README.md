@@ -331,6 +331,12 @@ supplier-invoice PDFs out of email and archiving them into a folder (local
 or Google-Drive/iCloud-synced). It's completely independent of the TOCOnline
 tools; use it or don't.
 
+> **Off by default.** The Gmail tools are only registered once Gmail
+> credentials exist (or you set `TOCONLINE_GMAIL=1`). So the first login must
+> go through the CLI — `toconline-mcp gmail-setup` — after which a restart
+> exposes the in-Claude `gmail_*` tools. If you don't use Gmail, these 10
+> tools never appear.
+
 ### One-time Google Cloud setup
 
 1. Go to <https://console.cloud.google.com/> and create (or pick) a project.
@@ -344,18 +350,16 @@ tools; use it or don't.
 
 ### Log in
 
-Either from the CLI:
+First login must use the CLI (the in-Claude `gmail_*` tools don't exist until
+credentials are present):
 
 ```bash
 toconline-mcp gmail-setup
 ```
 
-or from Claude (same shape as TOCOnline's `login`):
-
-> Log in to Gmail. client_id = `…`, client_secret = `…`
-
 Tokens are saved to `~/.config/toconline-mcp/gmail-credentials.json` (0600),
-separate from the TOCOnline credentials.
+separate from the TOCOnline credentials. Restart your client afterwards — the
+`gmail_*` tools (including `gmail_login` for re-auth) now appear.
 
 ### Scope
 

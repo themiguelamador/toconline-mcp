@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
+
 from mcp.server.fastmcp import FastMCP
 
+from toconline_mcp.gmail.store import gmail_credentials_path
 from toconline_mcp.http.client import TocClient
 from toconline_mcp.tools import (
     addresses,
@@ -37,4 +40,8 @@ def register_all(mcp: FastMCP, client: TocClient) -> None:
     bank.register(mcp, client)
     document_actions.register(mcp, client)
     generic.register(mcp, client)
-    gmail_tools.register(mcp)
+    # Gmail is an optional companion (invoice-PDF archiving). Only expose its
+    # tools once credentials exist — first-time login is the CLI `gmail-setup`.
+    # ponytail: gate on creds file; set TOCONLINE_GMAIL=1 to force-enable.
+    if os.environ.get("TOCONLINE_GMAIL") == "1" or gmail_credentials_path().exists():
+        gmail_tools.register(mcp)
