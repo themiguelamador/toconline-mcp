@@ -52,7 +52,8 @@ async def test_update_supplier_sets_id_and_patches():
     assert body["data"]["attributes"] == {"website": "https://x.pt"}
 
 
-async def test_create_product_attaches_item_family_relationship():
+async def test_create_product_sets_item_family_id_attribute():
+    # Docs set item_family via the `item_family_id` attribute, not a relationship.
     tools, request = _register(products)
     await tools["create_product"](
         item_code="P1", item_description="Widget", sales_price=9.9, item_family_id="7"
@@ -62,18 +63,17 @@ async def test_create_product_attaches_item_family_relationship():
         "item_code": "P1",
         "item_description": "Widget",
         "sales_price": 9.9,
+        "item_family_id": "7",
     }
-    assert body["data"]["relationships"]["item_family"]["data"] == {
-        "type": "item_families",
-        "id": "7",
-    }
+    assert "relationships" not in body["data"]
 
 
-async def test_create_service_without_family_has_no_relationships():
+async def test_create_service_without_family_drops_item_family_id():
     tools, request = _register(services)
     await tools["create_service"](item_code="S1", item_description="Consulting")
     body = request.call_args.kwargs["json"]
     assert body["data"]["type"] == "services"
+    assert "item_family_id" not in body["data"]["attributes"]  # None dropped
     assert "relationships" not in body["data"]
 
 

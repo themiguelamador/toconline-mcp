@@ -79,8 +79,8 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             sales_price_includes_vat=sales_price_includes_vat,
             tax_code=tax_code,
         )
-        rels = {"item_family": ("item_families", item_family_id)} if item_family_id else None
-        envelope = build_resource_envelope(_RESOURCE, attrs, rels)
+        attrs["item_family_id"] = item_family_id
+        envelope = build_resource_envelope(_RESOURCE, attrs)
         return await client.request("POST", _PATH, json=envelope)
 
     @mcp.tool()
@@ -108,7 +108,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             sales_price_includes_vat=sales_price_includes_vat,
             tax_code=tax_code,
         )
-        rels = {"item_family": ("item_families", item_family_id)} if item_family_id else None
-        envelope = build_resource_envelope(_RESOURCE, attrs, rels)
+        attrs["item_family_id"] = item_family_id
+        envelope = build_resource_envelope(_RESOURCE, attrs)
         envelope["data"]["id"] = safe_id
         return await client.request("PATCH", f"{_PATH}/{safe_id}", json=envelope)
