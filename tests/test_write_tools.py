@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
+import pytest
 from mcp.server.fastmcp import FastMCP
 
 from toconline_mcp.http.client import TocClient
-from toconline_mcp.tools import products, services, suppliers
+from toconline_mcp.tools import (
+    document_actions,
+    products,
+    reference,
+    services,
+    suppliers,
+)
 
 
 def _register(module) -> tuple[dict, AsyncMock]:
@@ -68,3 +75,31 @@ async def test_create_service_without_family_has_no_relationships():
     body = request.call_args.kwargs["json"]
     assert body["data"]["type"] == "services"
     assert "relationships" not in body["data"]
+
+
+async def test_reference_tables_register_and_hit_correct_paths():
+    tools, request = _register(reference)
+    expected = {
+        "list_countries": "/api/countries",
+        "list_item_families": "/api/item_families",
+        "list_units_of_measure": "/api/units_of_measure",
+        "list_tax_descriptors": "/api/tax_descriptors",
+        "list_cash_accounts": "/api/cash_accounts",
+    }
+    assert expected.keys() <= tools.keys()
+    for name, path in expected.items():
+        request.reset_mock()
+        await tools[name]()
+        method, called_path = request.call_args.args
+        assert (method, called_path) == ("GET", path)
+
+
+async def test_at_communication_requires_confirm():
+    tools, request = _register(document_actions)
+    with pytest.raises(ValueError):
+        await tools["communicate_sales_document_at"](id="9")
+    request.assert_not_called()
+    await tools["communicate_sales_document_at"](id="9", confirm=True)
+    method, path = request.call_args.args
+    assert method == "PATCH"
+    assert path == "/api/v1/commercial_sales_documents/9/send_document_at_webservice"

@@ -18,6 +18,7 @@ from toconline_mcp.tools import (
     gmail_tools,
     products,
     purchases,
+    reference,
     sales_documents,
     sales_receipts,
     services,
@@ -32,6 +33,7 @@ def register_all(mcp: FastMCP, client: TocClient) -> None:
     suppliers.register(mcp, client)
     products.register(mcp, client)
     services.register(mcp, client)
+    reference.register(mcp, client)
     sales_documents.register(mcp, client)
     sales_receipts.register(mcp, client)
     purchases.register(mcp, client)

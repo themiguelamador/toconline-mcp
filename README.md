@@ -267,7 +267,7 @@ depend on a specific user's filesystem:
 
 ## Tools
 
-40 typed tools plus a generic escape hatch. The typed tools expose exact-match
+47 typed tools plus a generic escape hatch. The typed tools expose exact-match
 filters only, but the underlying API
 [supports comparison operators](https://api-docs.toconline.pt/caracteristicas-dos-pedidos)
 — e.g. `filter="documents.pending_total>0"` or
@@ -288,6 +288,17 @@ raw `filter` param when you need ranges or date comparisons.
 | `list_suppliers` / `get_supplier` / `create_supplier` / `update_supplier` | Supplier CRUD. |
 | `list_products` / `get_product` / `create_product` / `update_product` | Product CRUD. |
 | `list_services` / `get_service` / `create_service` / `update_service` | Service CRUD. |
+
+### Reference tables (read-only)
+Lookup resources used when building documents and items.
+
+| Tool | Purpose |
+|---|---|
+| `list_countries` | ISO country codes and names. |
+| `list_item_families` | Item families for categorizing products/services (`item_family_id`). |
+| `list_units_of_measure` | Units (unidades) for document lines. |
+| `list_tax_descriptors` | VAT rates and their codes (`NOR`, `INT`, `RED`, `ISE`). |
+| `list_cash_accounts` | Cash accounts (caixas) for receipts/payments. |
 
 ### Addresses & contacts
 Addresses and contacts are separate JSON:API resources with an owning
@@ -333,7 +344,7 @@ to the top level, and `relationships.<name>.data.id` becomes `<name>_id`:
 }
 ```
 
-### Document actions (PDF, email, finalize, void)
+### Document actions (PDF, email, finalize, void, AT)
 
 | Tool | Purpose |
 |---|---|
@@ -341,26 +352,30 @@ to the top level, and `relationships.<name>.data.id` becomes `<name>_id`:
 | `send_document_email` | Email a sales document or receipt to a recipient via TOCOnline's mail servers. |
 | `finalize_sales_document` / `finalize_purchase_document` | Issue a draft document. Irreversible — requires `confirm=true`. |
 | `void_sales_receipt` / `void_purchase_document` | Void (anular) a document. Irreversible — requires `confirm=true`. |
+| `communicate_sales_document_at` / `communicate_purchase_document_at` | Report a finalized document to the AT (tax authority). Binding — requires `confirm=true`. |
 
 These endpoints aren't in the public API docs but are discoverable via the
 Postman collection TOCOnline provides from *Empresa → Configurações → Dados API*.
 
 ### Not yet implemented
 
-- **AT document communication** (Portuguese tax authority reporting) —
-  endpoint is `PATCH /api/send_document_at_webservice` but requires a
-  pre-existing communication status/code workflow we haven't mapped.
 - **Settlement linking** between a payment/receipt and the documents it
-  settles — `create_*_payment` / `create_*_receipt` create the payment
-  record itself but don't attach settlement lines. TOCOnline exposes
-  `commercial_*_payment_lines` / `commercial_sales_receipt_lines` for this;
-  use `api_request` until we add typed tools.
-- **Auxiliary APIs** as typed tools (tax descriptors at
-  `/api/tax_descriptors`, item families at `/api/item_families`, countries,
-  units of measure, bank accounts, cash accounts) — all readable via
-  `api_request`.
+  settles — `create_*_payment` / `create_*_receipt` create the payment record
+  itself but don't attach settlement lines. TOCOnline exposes
+  `commercial_sales_payment_lines` / `commercial_purchase_payment_lines` /
+  `commercial_sales_receipt_lines` for this, but the line payload isn't in the
+  public docs — guessing field names on a money path is unsafe, so this stays
+  on `api_request` until the fields are confirmed from the Postman collection.
+  Example:
 
-If any of these becomes important, ask and we'll promote it to a typed tool.
+  ```
+  api_request POST /api/commercial_sales_receipt_lines
+    { "data": { "type": "commercial_sales_receipt_lines",
+                "attributes": { ... }, "relationships": { ... } } }
+    confirm=true
+  ```
+
+If anything else becomes important, ask and we'll promote it to a typed tool.
 
 ## Gmail integration (optional)
 

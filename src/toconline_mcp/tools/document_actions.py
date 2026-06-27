@@ -142,6 +142,48 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         )
 
     @mcp.tool()
+    async def communicate_sales_document_at(
+        id: Annotated[str, Field(description="Sales document id (must be finalized first).")],
+        confirm: Annotated[
+            bool,
+            Field(description="Must be true. Communicating to the AT is a binding fiscal action."),
+        ] = False,
+    ) -> dict[str, Any]:
+        """Communicate a finalized sales document to the AT (Portuguese tax authority).
+
+        Triggers TOCOnline's `send_document_at_webservice` action. The document
+        must already be finalized. Requires `confirm=true` because the report is
+        a binding fiscal submission. The response carries the AT communication
+        status/code returned by the webservice.
+        """
+        if not confirm:
+            raise ValueError("communicate_sales_document_at requires confirm=true")
+        safe_id = require_id(id, "id")
+        return await client.request(
+            "PATCH",
+            f"/api/v1/commercial_sales_documents/{safe_id}/send_document_at_webservice",
+            json={},
+        )
+
+    @mcp.tool()
+    async def communicate_purchase_document_at(
+        id: Annotated[str, Field(description="Purchase document id (must be finalized first).")],
+        confirm: Annotated[
+            bool,
+            Field(description="Must be true. Communicating to the AT is a binding fiscal action."),
+        ] = False,
+    ) -> dict[str, Any]:
+        """Communicate a finalized purchase document to the AT (Portuguese tax authority)."""
+        if not confirm:
+            raise ValueError("communicate_purchase_document_at requires confirm=true")
+        safe_id = require_id(id, "id")
+        return await client.request(
+            "PATCH",
+            f"/api/v1/commercial_purchases_documents/{safe_id}/send_document_at_webservice",
+            json={},
+        )
+
+    @mcp.tool()
     async def void_sales_receipt(
         id: Annotated[str, Field(description="Sales receipt id to void.")],
         confirm: Annotated[
