@@ -267,7 +267,7 @@ depend on a specific user's filesystem:
 
 ## Tools
 
-34 typed tools plus a generic escape hatch. The typed tools expose exact-match
+40 typed tools plus a generic escape hatch. The typed tools expose exact-match
 filters only, but the underlying API
 [supports comparison operators](https://api-docs.toconline.pt/caracteristicas-dos-pedidos)
 — e.g. `filter="documents.pending_total>0"` or
@@ -285,8 +285,9 @@ raw `filter` param when you need ranges or date comparisons.
 | Tool | Purpose |
 |---|---|
 | `list_customers` / `get_customer` / `create_customer` / `update_customer` | Customer CRUD. |
-| `list_suppliers` / `get_supplier` | Suppliers read-only. |
-| `list_products` / `get_product` | Products/services read-only. |
+| `list_suppliers` / `get_supplier` / `create_supplier` / `update_supplier` | Supplier CRUD. |
+| `list_products` / `get_product` / `create_product` / `update_product` | Product CRUD. |
+| `list_services` / `get_service` / `create_service` / `update_service` | Service CRUD. |
 
 ### Addresses & contacts
 Addresses and contacts are separate JSON:API resources with an owning
@@ -354,9 +355,6 @@ Postman collection TOCOnline provides from *Empresa → Configurações → Dado
   record itself but don't attach settlement lines. TOCOnline exposes
   `commercial_*_payment_lines` / `commercial_sales_receipt_lines` for this;
   use `api_request` until we add typed tools.
-- **Product create/update**, **supplier create/update** — endpoints exist
-  (`POST/PATCH /api/products`, `POST/PATCH /api/suppliers`) and can be
-  called via `api_request`.
 - **Auxiliary APIs** as typed tools (tax descriptors at
   `/api/tax_descriptors`, item families at `/api/item_families`, countries,
   units of measure, bank accounts, cash accounts) — all readable via
