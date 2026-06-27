@@ -25,14 +25,20 @@ def require_iso_date(value: str, field: str) -> str:
 
 def item_attributes(
     *,
+    item_type: str | None = None,
     item_code: str | None,
     item_description: str | None,
     sales_price: float | None,
     sales_price_includes_vat: bool | None,
     tax_code: str | None,
 ) -> dict[str, Any]:
-    """Writable attributes shared by products and services (same item schema)."""
+    """Writable attributes shared by products and services (same item schema).
+
+    The API requires the item-type attribute `type` ("Product"/"Service") on
+    create and rejects items without it. Note this is the attribute named
+    `type`, distinct from the JSON:API resource `data.type` ("products")."""
     return {
+        "type": item_type,
         "item_code": item_code,
         "item_description": item_description,
         "sales_price": sales_price,

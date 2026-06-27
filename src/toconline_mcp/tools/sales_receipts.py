@@ -11,6 +11,8 @@ from toconline_mcp.tools._helpers import build_list_params, require_id, require_
 
 _PATH = "/api/commercial_sales_receipts"
 _TYPE = "commercial_sales_receipts"
+_LINE_PATH = "/api/commercial_sales_receipt_lines"
+_LINE_TYPE = "commercial_sales_receipt_lines"
 
 
 def register(mcp: FastMCP, client: TocClient) -> None:
@@ -71,9 +73,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     ) -> dict[str, Any]:
         """Create a sales receipt (customer payment) record.
 
-        Note: this creates the receipt itself; linking it to specific sales
-        documents (settlement) may require additional steps the MVP does not
-        cover. Use `api_request` if you need to attach settlement lines.
+        Note: this creates the receipt itself. To settle specific sales
+        documents against it, add `create_sales_receipt_line` calls referencing
+        this receipt's id.
         """
         require_iso_date(date, "date")
         safe_customer_id = require_id(customer_id, "customer_id")
@@ -92,3 +94,43 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             )
         envelope = build_resource_envelope(_TYPE, attributes, relationships=relationships)
         return await client.request("POST", _PATH, json=envelope)
+
+    @mcp.tool()
+    async def create_sales_receipt_line(
+        receipt_id: Annotated[str, Field(description="Parent sales receipt id (from create_sales_receipt).")],
+        receivable_id: Annotated[
+            str, Field(description="Id of the receivable being settled — the sales document id.")
+        ],
+        received_value: Annotated[
+            float, Field(description="Amount of this receipt applied to the receivable.", gt=0)
+        ],
+        receivable_type: Annotated[
+            str, Field(description="Receivable kind. `Document` for a sales document.")
+        ] = "Document",
+        gross_total: Annotated[float | None, Field(description="Gross total of the receivable line.")] = None,
+        net_total: Annotated[float | None, Field(description="Net total of the receivable line.")] = None,
+        retention_total: Annotated[float | None, Field(description="Withholding/retention amount.")] = None,
+        settlement_amount: Annotated[float | None, Field(description="Early-settlement discount amount.")] = None,
+        settlement_percentage: Annotated[float | None, Field(description="Early-settlement discount percentage.")] = None,
+        cashed_vat_amount: Annotated[float | None, Field(description="Cashed-VAT amount, if applicable.")] = None,
+    ) -> dict[str, Any]:
+        """Settle a sales document against a receipt (settlement line).
+
+        Links an existing receipt to a receivable so the document is marked
+        paid. Field values (how much settles what) are the caller's
+        responsibility — this tool only builds the documented payload.
+        """
+        attributes = {
+            "receipt_id": require_id(receipt_id, "receipt_id"),
+            "receivable_id": require_id(receivable_id, "receivable_id"),
+            "receivable_type": receivable_type,
+            "received_value": received_value,
+            "gross_total": gross_total,
+            "net_total": net_total,
+            "retention_total": retention_total,
+            "settlement_amount": settlement_amount,
+            "settlement_percentage": settlement_percentage,
+            "cashed_vat_amount": cashed_vat_amount,
+        }
+        envelope = build_resource_envelope(_LINE_TYPE, attributes)
+        return await client.request("POST", _LINE_PATH, json=envelope)

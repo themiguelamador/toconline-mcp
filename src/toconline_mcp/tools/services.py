@@ -78,6 +78,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     ) -> dict[str, Any]:
         """Create a service. Returns the created record."""
         attrs = item_attributes(
+            item_type="Service",
             item_code=item_code,
             item_description=item_description,
             sales_price=sales_price,
@@ -117,3 +118,17 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         envelope = build_resource_envelope(_RESOURCE, attrs)
         envelope["data"]["id"] = safe_id
         return await client.request("PATCH", f"{_PATH}/{safe_id}", json=envelope)
+
+    @mcp.tool()
+    async def delete_service(
+        id: Annotated[str, Field(description="Service id.")],
+        confirm: Annotated[
+            bool, Field(description="Must be true. Safety gate against accidental deletes.")
+        ] = False,
+    ) -> dict[str, Any]:
+        """Delete a service. Requires `confirm=true`."""
+        if not confirm:
+            raise ValueError("delete_service requires confirm=true")
+        safe_id = require_id(id, "id")
+        await client.request("DELETE", f"{_PATH}/{safe_id}")
+        return {"status": "deleted", "id": safe_id}

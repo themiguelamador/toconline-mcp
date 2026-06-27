@@ -15,6 +15,8 @@ _DOCS_V1_PATH = "/api/v1/commercial_purchases_documents"
 _LINES_PATH = "/api/commercial_purchases_document_lines"
 _PAYMENTS_PATH = "/api/commercial_purchases_payments"
 _PAY_TYPE = "commercial_purchases_payments"
+_PAY_LINE_PATH = "/api/commercial_purchases_payment_lines"
+_PAY_LINE_TYPE = "commercial_purchases_payment_lines"
 _V1_HEADERS = {"Content-Type": "application/json"}
 
 
@@ -202,9 +204,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     ) -> dict[str, Any]:
         """Create a purchase payment record.
 
-        Note: this creates the payment itself; linking it to specific purchase
-        documents (settlement) requires `commercial_purchases_payment_lines`,
-        which is not wrapped by a typed tool yet — use `api_request` for that.
+        Note: this creates the payment itself. To settle specific purchase
+        document lines against it, add `create_purchase_payment_line` calls
+        referencing this payment's id.
         """
         require_iso_date(date, "date")
         safe_supplier_id = require_id(supplier_id, "supplier_id")
@@ -220,3 +222,45 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             relationships["bank_accounts"] = ("bank_accounts", require_id(bank_account_id, "bank_account_id"))
         envelope = build_resource_envelope(_PAY_TYPE, attributes, relationships=relationships)
         return await client.request("POST", _PAYMENTS_PATH, json=envelope)
+
+    @mcp.tool()
+    async def create_purchase_payment_line(
+        payment_id: Annotated[str, Field(description="Parent purchase payment id (from create_purchase_payment).")],
+        payable_id: Annotated[
+            str,
+            Field(description="Id of the payable being settled — a purchase document LINE id, not the document id."),
+        ],
+        paid_value: Annotated[
+            float, Field(description="Amount of this payment applied to the payable.", gt=0)
+        ],
+        payable_type: Annotated[
+            str, Field(description="Payable kind. `Purchases::DocumentLine` for a purchase document line.")
+        ] = "Purchases::DocumentLine",
+        gross_total: Annotated[float | None, Field(description="Gross total of the payable line.")] = None,
+        net_total: Annotated[float | None, Field(description="Net total of the payable line.")] = None,
+        retention_total: Annotated[float | None, Field(description="Withholding/retention amount.")] = None,
+        settlement_amount: Annotated[float | None, Field(description="Early-settlement discount amount.")] = None,
+        settlement_percentage: Annotated[float | None, Field(description="Early-settlement discount percentage.")] = None,
+        cashed_vat_amount: Annotated[float | None, Field(description="Cashed-VAT amount, if applicable.")] = None,
+    ) -> dict[str, Any]:
+        """Settle a purchase document line against a payment (settlement line).
+
+        Links an existing payment to a payable so the document line is marked
+        paid. Note the payable is a document *line* (`payable_id`), unlike sales
+        receipts which settle whole documents. Field values are the caller's
+        responsibility — this tool only builds the documented payload.
+        """
+        attributes = {
+            "payment_id": require_id(payment_id, "payment_id"),
+            "payable_id": require_id(payable_id, "payable_id"),
+            "payable_type": payable_type,
+            "paid_value": paid_value,
+            "gross_total": gross_total,
+            "net_total": net_total,
+            "retention_total": retention_total,
+            "settlement_amount": settlement_amount,
+            "settlement_percentage": settlement_percentage,
+            "cashed_vat_amount": cashed_vat_amount,
+        }
+        envelope = build_resource_envelope(_PAY_LINE_TYPE, attributes)
+        return await client.request("POST", _PAY_LINE_PATH, json=envelope)

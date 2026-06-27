@@ -190,3 +190,17 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         envelope = build_resource_envelope(_RESOURCE, attrs)
         envelope["data"]["id"] = safe_id
         return await client.request("PATCH", f"{_PATH}/{safe_id}", json=envelope)
+
+    @mcp.tool()
+    async def delete_supplier(
+        id: Annotated[str, Field(description="Supplier id.")],
+        confirm: Annotated[
+            bool, Field(description="Must be true. Safety gate against accidental deletes.")
+        ] = False,
+    ) -> dict[str, Any]:
+        """Delete a supplier. Requires `confirm=true`."""
+        if not confirm:
+            raise ValueError("delete_supplier requires confirm=true")
+        safe_id = require_id(id, "id")
+        await client.request("DELETE", f"{_PATH}/{safe_id}")
+        return {"status": "deleted", "id": safe_id}

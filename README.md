@@ -199,6 +199,11 @@ export TOCONLINE_API_BASE='<API_URL>'
 toconline-mcp setup
 ```
 
+> If the MCP server is already running in your client, restart/reconnect it
+> afterwards — it caches credentials in memory at startup, so `auth_status`
+> will show the fresh token while real calls still fail with
+> `unauthorized_client` until the server reloads the file.
+
 ### Token lifetime
 
 Per TOCOnline's [auth docs](https://api-docs.toconline.pt/autenticacao-detalhada),
@@ -277,9 +282,70 @@ depend on a specific user's filesystem:
 }
 ```
 
+## API coverage
+
+Targets the **TOCOnline Open API v1.0.0** (JSON:API), documented at
+[api-docs.toconline.pt](https://api-docs.toconline.pt/) with the full
+[OpenAPI 3.0.3 spec on SwaggerHub](https://app.swaggerhub.com/apis-docs/toconline.pt/toc-online_open_api/1.0.0)
+(68 paths). The base URL is
+region-specific — e.g. `https://api14.toconline.pt` (the digits match your
+account's region). A few document actions (finalize, email) use TOCOnline's
+legacy **v1 action** endpoints, which aren't in the public docs but ship in the
+Postman collection from *Empresa → Configurações → Dados API*.
+
+Mapped against the public docs — ✅ typed tool, ⚠️ partial, ❌ `api_request` only:
+
+| API section (docs) | Resource | Coverage |
+|---|---|---|
+| Empresa | Clientes (+ morada, e-mail) | ✅ full CRUD + addresses/contacts |
+| Empresa | Fornecedores (+ morada, e-mail) | ✅ full CRUD + addresses/contacts |
+| Empresa | Produtos e Serviços | ✅ full CRUD |
+| Vendas | Documentos de Venda | ✅ list/get/create/delete |
+| Vendas | Recibos de Venda | ✅ list/get/create + void |
+| Vendas | PDF (documento + recibo) | ✅ `get_document_pdf_url` |
+| Vendas | Envio por e-mail | ✅ `send_document_email` |
+| Vendas | Comunicação à AT | ✅ `communicate_sales_document_at` |
+| Compras | Documentos de Compra | ✅ list/get/create + finalize/void |
+| Compras | Pagamentos | ✅ list/get/create |
+| Compras | PDF / Comunicação à AT | ✅ pdf url + `communicate_purchase_document_at` |
+| Auxiliares | Descritores de Taxa | ✅ `list_tax_descriptors` |
+| Auxiliares | Família de Itens | ✅ `list_item_families` |
+| Auxiliares | Países | ✅ `list_countries` |
+| Auxiliares | Unidades de Medida | ✅ `list_units_of_measure` |
+| Auxiliares | Contas Bancárias | ✅ `list_bank_accounts` / `get` |
+| Auxiliares | Caixa Associada | ✅ `list_cash_accounts` |
+| Auxiliares | Unidade Monetária (moedas) | ❌ `api_request` |
+| Auxiliares | Taxas (tax rates) | ❌ `api_request` |
+| Auxiliares | Categorias de Despesa | ❌ `api_request` |
+| Auxiliares | Documentos de Série | ❌ `api_request` |
+| Auxiliares | OSS (países e taxas) | ❌ `api_request` |
+| Vendas/Compras | Settlement / payment lines | ✅ `create_sales_receipt_line` / `create_purchase_payment_line` |
+
+Anything ❌ works today through `api_request` with no new code — the four
+uncovered auxiliary tables are read-only lookups. Ask if you want any promoted
+to a typed tool.
+
+### Validation status
+
+How far each recently added/changed tool has been verified — **live** = a real
+call against the API succeeded; **unit** = payload shape covered by tests but not
+run against the API; **untested** = no automated or live check yet.
+
+| Tool(s) | Status |
+|---|---|
+| `list_countries`, `list_item_families`, `list_units_of_measure`, `list_tax_descriptors`, `list_cash_accounts` | ✅ live |
+| `create_product` (incl. required `type` + `item_family_id`) | ✅ live |
+| `delete_product` | ✅ live |
+| `create_service`, `delete_service` | ✅ live |
+| `update_product`, `update_service` | 🧪 unit |
+| `create_customer` / `update_customer` / `delete_customer` | 🧪 unit |
+| `create_supplier` / `update_supplier` / `delete_supplier` | 🧪 unit |
+| `create_sales_receipt_line`, `create_purchase_payment_line` | 🧪 unit — money path, not run live (settles real documents) |
+| `communicate_sales_document_at`, `communicate_purchase_document_at` | ⏳ untested — binding AT submission |
+
 ## Tools
 
-47 typed tools plus a generic escape hatch. The typed tools expose exact-match
+53 typed tools plus a generic escape hatch. The typed tools expose exact-match
 filters only, but the underlying API
 [supports comparison operators](https://api-docs.toconline.pt/caracteristicas-dos-pedidos)
 — e.g. `filter="documents.pending_total>0"` or
@@ -296,10 +362,13 @@ raw `filter` param when you need ranges or date comparisons.
 ### Customers, suppliers, products
 | Tool | Purpose |
 |---|---|
-| `list_customers` / `get_customer` / `create_customer` / `update_customer` | Customer CRUD. |
-| `list_suppliers` / `get_supplier` / `create_supplier` / `update_supplier` | Supplier CRUD. |
-| `list_products` / `get_product` / `create_product` / `update_product` | Product CRUD. |
-| `list_services` / `get_service` / `create_service` / `update_service` | Service CRUD. |
+| `list_customers` / `get_customer` / `create_customer` / `update_customer` / `delete_customer` | Customer CRUD. |
+| `list_suppliers` / `get_supplier` / `create_supplier` / `update_supplier` / `delete_supplier` | Supplier CRUD. |
+| `list_products` / `get_product` / `create_product` / `update_product` / `delete_product` | Product CRUD. |
+| `list_services` / `get_service` / `create_service` / `update_service` / `delete_service` | Service CRUD. |
+
+`delete_*` require `confirm=true`. Create/update set the API-required item
+`type` attribute (`Product`/`Service`) automatically.
 
 ### Reference tables (read-only)
 Lookup resources used when building documents and items.
@@ -330,12 +399,14 @@ Addresses and contacts are separate JSON:API resources with an owning
 | `get_sales_document` | Single document, with its line items merged by default. |
 | `create_sales_document` | Draft document with line items. For credit/debit notes, set `document_type='NC'` or `'ND'` and pass `parent_document_id` to reference the original. |
 | `list_sales_receipts` / `get_sales_receipt` / `create_sales_receipt` | Customer-payment receipts. |
+| `create_sales_receipt_line` | Settle a sales document against a receipt (settlement line). |
 
 ### Purchases
 | Tool | Purpose |
 |---|---|
 | `list_purchase_documents` / `get_purchase_document` / `create_purchase_document` | Supplier invoices. |
 | `list_purchase_payments` / `get_purchase_payment` / `create_purchase_payment` | Supplier payments. |
+| `create_purchase_payment_line` | Settle a purchase document line against a payment (settlement line). |
 
 ### Escape hatch
 | Tool | Purpose |
@@ -369,25 +440,24 @@ to the top level, and `relationships.<name>.data.id` becomes `<name>_id`:
 These endpoints aren't in the public API docs but are discoverable via the
 Postman collection TOCOnline provides from *Empresa → Configurações → Dados API*.
 
-### Not yet implemented
+### Settlement linking
 
-- **Settlement linking** between a payment/receipt and the documents it
-  settles — `create_*_payment` / `create_*_receipt` create the payment record
-  itself but don't attach settlement lines. TOCOnline exposes
-  `commercial_sales_payment_lines` / `commercial_purchase_payment_lines` /
-  `commercial_sales_receipt_lines` for this, but the line payload isn't in the
-  public docs — guessing field names on a money path is unsafe, so this stays
-  on `api_request` until the fields are confirmed from the Postman collection.
-  Example:
+`create_sales_receipt_line` / `create_purchase_payment_line` attach a receipt or
+payment to the document it settles (so the document is marked paid). The two are
+asymmetric, per the API:
 
-  ```
-  api_request POST /api/commercial_sales_receipt_lines
-    { "data": { "type": "commercial_sales_receipt_lines",
-                "attributes": { ... }, "relationships": { ... } } }
-    confirm=true
-  ```
+- **Sales** settle a whole **document**: `receivable_type="Document"`,
+  `receivable_id` = the sales document id.
+- **Purchases** settle a document **line**: `payable_type="Purchases::DocumentLine"`,
+  `payable_id` = a purchase document *line* id (not the document id).
 
-If anything else becomes important, ask and we'll promote it to a typed tool.
+The tools build the documented payload; the settlement amounts (`received_value`
+/ `paid_value`, `settlement_amount`, `retention_total`, …) are the caller's
+responsibility.
+
+The four uncovered auxiliary read tables (currencies, taxes, expense categories,
+document series, OSS) stay on `api_request` — ask and we'll promote any to a
+typed tool.
 
 ## Gmail integration (optional)
 

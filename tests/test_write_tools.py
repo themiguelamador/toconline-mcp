@@ -9,7 +9,9 @@ from toconline_mcp.http.client import TocClient
 from toconline_mcp.tools import (
     document_actions,
     products,
+    purchases,
     reference,
+    sales_receipts,
     services,
     suppliers,
 )
@@ -60,6 +62,7 @@ async def test_create_product_sets_item_family_id_attribute():
     )
     body = request.call_args.kwargs["json"]
     assert body["data"]["attributes"] == {
+        "type": "Product",  # required attribute; server rejects items without it
         "item_code": "P1",
         "item_description": "Widget",
         "sales_price": 9.9,
@@ -68,11 +71,54 @@ async def test_create_product_sets_item_family_id_attribute():
     assert "relationships" not in body["data"]
 
 
+async def test_delete_product_requires_confirm_then_deletes():
+    tools, request = _register(products)
+    with pytest.raises(ValueError):
+        await tools["delete_product"](id="9")  # confirm defaults to False
+    request.assert_not_called()
+    result = await tools["delete_product"](id="9", confirm=True)
+    assert request.call_args.args == ("DELETE", "/api/products/9")
+    assert result == {"status": "deleted", "id": "9"}
+
+
+async def test_create_sales_receipt_line_builds_settlement_payload():
+    tools, request = _register(sales_receipts)
+    await tools["create_sales_receipt_line"](
+        receipt_id="13", receivable_id="12", received_value=10.69, gross_total=10.69
+    )
+    method, path = request.call_args.args
+    body = request.call_args.kwargs["json"]
+    assert (method, path) == ("POST", "/api/commercial_sales_receipt_lines")
+    assert body["data"]["type"] == "commercial_sales_receipt_lines"
+    assert body["data"]["attributes"] == {
+        "receipt_id": "13",
+        "receivable_id": "12",
+        "receivable_type": "Document",  # default
+        "received_value": 10.69,
+        "gross_total": 10.69,
+    }  # unset optionals (net/retention/settlement/cashed_vat) dropped
+
+
+async def test_create_purchase_payment_line_settles_a_document_line():
+    tools, request = _register(purchases)
+    await tools["create_purchase_payment_line"](
+        payment_id="5", payable_id="6", paid_value=20
+    )
+    method, path = request.call_args.args
+    body = request.call_args.kwargs["json"]
+    assert (method, path) == ("POST", "/api/commercial_purchases_payment_lines")
+    # purchases settle a document LINE, not a whole document
+    assert body["data"]["attributes"]["payable_type"] == "Purchases::DocumentLine"
+    assert body["data"]["attributes"]["payable_id"] == "6"
+    assert body["data"]["attributes"]["paid_value"] == 20
+
+
 async def test_create_service_without_family_drops_item_family_id():
     tools, request = _register(services)
     await tools["create_service"](item_code="S1", item_description="Consulting")
     body = request.call_args.kwargs["json"]
     assert body["data"]["type"] == "services"
+    assert body["data"]["attributes"]["type"] == "Service"
     assert "item_family_id" not in body["data"]["attributes"]  # None dropped
     assert "relationships" not in body["data"]
 
