@@ -87,13 +87,25 @@ python3 -m venv ~/.local/toconline-mcp
 
 ### Updating after code changes
 
-When you pull new commits or edit the source, refresh the installed tool:
+When you pull new commits or edit the source, three steps — and which you need
+depends on what changed:
 
 ```bash
+# 1. Rebuild the installed launcher (always)
 uv tool install --from . toconline-mcp --reinstall
 ```
 
-Then restart whichever client is using the server.
+2. **Restart the server** — fully quit the client (Claude Desktop: ⌘Q, not
+   just the window) and reopen, or kill the running `toconline-mcp` process so
+   it respawns with the new code.
+3. **Start a new chat** — *only needed when you added or renamed a tool.* The
+   chat caches the tool list it got at startup, so a new tool won't appear in
+   an existing conversation even after the server restarts.
+
+Editing an existing tool's behaviour needs only steps 1–2; **adding or
+renaming** a tool needs all three. See
+[Iteration workflow](#iteration-workflow-picking-up-code-changes) for the full
+explanation and how to find/kill stale processes.
 
 ## Getting TOCOnline API credentials
 
