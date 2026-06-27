@@ -23,6 +23,24 @@ def require_iso_date(value: str, field: str) -> str:
     return str(value)
 
 
+def item_attributes(
+    *,
+    item_code: str | None,
+    item_description: str | None,
+    sales_price: float | None,
+    sales_price_includes_vat: bool | None,
+    tax_code: str | None,
+) -> dict[str, Any]:
+    """Writable attributes shared by products and services (same item schema)."""
+    return {
+        "item_code": item_code,
+        "item_description": item_description,
+        "sales_price": sales_price,
+        "sales_price_includes_vat": sales_price_includes_vat,
+        "tax_code": tax_code,
+    }
+
+
 def build_list_params(
     page_size: int | None = None,
     page_number: int | None = None,

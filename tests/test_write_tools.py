@@ -103,3 +103,5 @@ async def test_at_communication_requires_confirm():
     method, path = request.call_args.args
     assert method == "PATCH"
     assert path == "/api/v1/commercial_sales_documents/9/send_document_at_webservice"
+    # v1 action endpoints must override the default JSON:API Content-Type.
+    assert request.call_args.kwargs["headers"] == {"Content-Type": "application/json"}

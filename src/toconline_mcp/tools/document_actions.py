@@ -18,6 +18,10 @@ from toconline_mcp.tools._helpers import require_id
 _URL_FOR_PRINT = "/api/url_for_print"
 _EMAIL = "/api/email/document"
 
+# v1 action endpoints take flat (non-JSON:API) bodies; the client defaults to
+# application/vnd.api+json, so override per the TocClient.request contract.
+_V1_JSON = {"Content-Type": "application/json"}
+
 
 def _assemble_url(url_obj: dict[str, Any]) -> str:
     """`url_for_print` returns `{scheme, host, port, path}`. Reassemble to a string."""
@@ -122,7 +126,8 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             )
         safe_id = require_id(id, "id")
         return await client.request(
-            "PATCH", f"/api/v1/commercial_sales_documents/{safe_id}/finalize", json={}
+            "PATCH", f"/api/v1/commercial_sales_documents/{safe_id}/finalize",
+            json={}, headers=_V1_JSON,
         )
 
     @mcp.tool()
@@ -138,7 +143,8 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             raise ValueError("finalize_purchase_document requires confirm=true")
         safe_id = require_id(id, "id")
         return await client.request(
-            "PATCH", f"/api/v1/commercial_purchases_documents/{safe_id}/finalize", json={}
+            "PATCH", f"/api/v1/commercial_purchases_documents/{safe_id}/finalize",
+            json={}, headers=_V1_JSON,
         )
 
     @mcp.tool()
@@ -162,7 +168,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         return await client.request(
             "PATCH",
             f"/api/v1/commercial_sales_documents/{safe_id}/send_document_at_webservice",
-            json={},
+            json={}, headers=_V1_JSON,
         )
 
     @mcp.tool()
@@ -180,7 +186,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         return await client.request(
             "PATCH",
             f"/api/v1/commercial_purchases_documents/{safe_id}/send_document_at_webservice",
-            json={},
+            json={}, headers=_V1_JSON,
         )
 
     @mcp.tool()
@@ -195,7 +201,8 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             raise ValueError("void_sales_receipt requires confirm=true")
         safe_id = require_id(id, "id")
         return await client.request(
-            "PATCH", f"/api/v1/commercial_sales_receipts/{safe_id}/void", json={}
+            "PATCH", f"/api/v1/commercial_sales_receipts/{safe_id}/void",
+            json={}, headers=_V1_JSON,
         )
 
     @mcp.tool()
@@ -210,5 +217,6 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             raise ValueError("void_purchase_document requires confirm=true")
         safe_id = require_id(id, "id")
         return await client.request(
-            "PATCH", f"/api/v1/commercial_purchases_documents/{safe_id}/void", json={}
+            "PATCH", f"/api/v1/commercial_purchases_documents/{safe_id}/void",
+            json={}, headers=_V1_JSON,
         )
