@@ -189,10 +189,17 @@ toconline-mcp setup
 
 ### Token lifetime
 
-Access tokens issued by TOCOnline are long-lived (~91 days) and this MCP
-refreshes them automatically before each request. You should only need to
-re-run `login` / `setup` if you revoke the integration, rotate the client
-secret, or change `OAUTH_REDIRECT_URL`.
+Per TOCOnline's [auth docs](https://api-docs.toconline.pt/autenticacao-detalhada),
+the **access token lasts 4 hours** (`expires_in: 14400`) and the **refresh
+token 8 hours**. This MCP refreshes the access token automatically (2 minutes
+before expiry) whenever you make a request, so during active use you never
+notice.
+
+The catch is the 8-hour refresh window: if the server sits **idle for more
+than 8 hours**, the refresh token expires and the next call fails with a
+401 — you'll need to re-run `login` / `setup`. (This is a TOCOnline limit, not
+something this MCP can extend.) You also re-login if you revoke the
+integration, rotate the client secret, or change `OAUTH_REDIRECT_URL`.
 
 ## Register with Claude
 
@@ -260,8 +267,12 @@ depend on a specific user's filesystem:
 
 ## Tools
 
-34 typed tools plus a generic escape hatch. All filters are exact match —
-TOCOnline does not expose range or substring operators.
+34 typed tools plus a generic escape hatch. The typed tools expose exact-match
+filters only, but the underlying API
+[supports comparison operators](https://api-docs.toconline.pt/caracteristicas-dos-pedidos)
+— e.g. `filter="documents.pending_total>0"` or
+`document_lines.created_at>'2022-01-01'::date`. Reach for `api_request` with a
+raw `filter` param when you need ranges or date comparisons.
 
 ### Authentication
 | Tool | Purpose |
