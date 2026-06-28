@@ -11,6 +11,8 @@ may land in minor versions.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-28
+
 ### Fixed
 - Token refresh no longer fails once the initial access token expires. The
   refresh response often omits `refresh_token` (reused) and `expires_in`, which
@@ -28,6 +30,8 @@ may land in minor versions.
   whether the token actually works, not just the cached local expiry; the call
   also triggers a normal refresh, letting a stale-but-refreshable token
   self-heal. Pass `verify=false` for the old fast, offline check.
+- Trimmed every tool docstring and parameter description to reduce the
+  always-in-context token cost (~195 fewer lines), keeping all safety semantics.
 
 ## [0.3.0] - 2026-06-28
 
@@ -107,7 +111,8 @@ found while dogfooding real invoice emission.
 - Initial TOCOnline MCP server: OAuth login, customer and sales-document tools,
   purchases, and a generic `api_request` escape hatch.
 
-[Unreleased]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/themiguelamador/toconline-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/themiguelamador/toconline-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/themiguelamador/toconline-mcp/releases/tag/v0.1.0
