@@ -11,6 +11,14 @@ may land in minor versions.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-29
+
+### Fixed
+- Sparse fieldsets (`fields=`) now accept the flattened relationship names from
+  responses (`main_address_id`, `addresses_ids`): they are translated back to
+  the JSON:API relationship name (`main_address`, `addresses`) so the
+  relationship is returned instead of raising JA011 or being silently dropped.
+
 ## [0.3.1] - 2026-06-28
 
 ### Fixed
@@ -111,7 +119,8 @@ found while dogfooding real invoice emission.
 - Initial TOCOnline MCP server: OAuth login, customer and sales-document tools,
   purchases, and a generic `api_request` escape hatch.
 
-[Unreleased]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/themiguelamador/toconline-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/themiguelamador/toconline-mcp/compare/v0.1.0...v0.2.0
