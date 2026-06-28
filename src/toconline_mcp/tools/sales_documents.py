@@ -221,10 +221,12 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         `customer_address_detail`, the customer has no `main_address_id` set;
         fix the customer's address rather than passing address fields here.
 
-        Date: on a certified series the date cannot precede the series' last
-        issued document. When `finalize=True` this is pre-checked and raised
-        early (best-effort, assuming one active series per type); the API
-        enforces it definitively.
+        Date: on a certified series the date cannot precede that series' last
+        issued document. The API enforces this per series; we deliberately
+        don't pre-check it client-side — a document_type can map to several
+        series (e.g. FT uses both `FT 2026/…` and `FT 2026P/…`) and we don't
+        know which the API will assign, so any client-side guess would risk
+        blocking a legitimately back-dated document in another series.
         """
         require_iso_date(date, "date")
         safe_customer_id = require_id(customer_id, "customer_id")
@@ -232,7 +234,6 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             require_iso_date(due_date, "due_date")
 
         if finalize:
-            await _assert_not_backdated(client, document_type, date)
             return await _create_finalized_v1(
                 client,
                 document_type=document_type,
@@ -279,43 +280,6 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         safe_id = require_id(id, "id")
         await client.request("DELETE", f"{_DOCS_PATH}/{safe_id}")
         return {"status": "deleted", "id": safe_id}
-
-
-async def _assert_not_backdated(client: TocClient, document_type: str, date: str) -> None:
-    """Reject finalizing with a date earlier than the series' last issued document.
-
-    A certified series forbids back-dating, and the API only rejects it at the
-    irreversible finalize step. This pre-check surfaces it early with the
-    offending date. Best-effort: it assumes one active series per document_type
-    and silently skips if it can't determine the latest issued date, so a failed
-    pre-check never blocks a legitimate emission.
-    """
-    try:
-        latest = await client.request(
-            "GET",
-            _DOCS_PATH,
-            params=build_list_params(
-                page_size=5,
-                filters={"document_type": document_type},
-                sort="-date,-id",
-                fields={_DOC_TYPE: "date,document_no"},
-            ),
-        )
-    except Exception:  # noqa: BLE001 — a failed pre-check must not block finalize
-        return
-    items = latest.get("items") if isinstance(latest, dict) else None
-    # Only issued documents have a document_no; drafts (no number) don't constrain the series.
-    issued = [d for d in (items or []) if d.get("document_no")]
-    if not issued:
-        return
-    last = issued[0]  # already sorted newest-first by date
-    last_date = last.get("date")
-    if last_date and date < last_date:
-        raise ValueError(
-            f"date {date} precedes the last issued {document_type} "
-            f"({last.get('document_no')} dated {last_date}); a certified series "
-            f"rejects back-dating — use a date on or after {last_date}"
-        )
 
 
 async def _create_finalized_v1(

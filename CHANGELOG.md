@@ -11,11 +11,6 @@ may land in minor versions.
 
 ## [Unreleased]
 
-### Added
-- `create_sales_document(finalize=True)` pre-checks the date against the series'
-  last issued document and fails early on back-dating (best-effort; assumes one
-  active series per type, the API enforces definitively).
-
 ### Fixed
 - `create_address` is now idempotent: it checks the parent's existing addresses
   first and returns a match instead of creating a duplicate (TOCOnline allows

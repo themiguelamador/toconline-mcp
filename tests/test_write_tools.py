@@ -154,22 +154,6 @@ async def test_create_address_dedupes_existing():
     assert all(c.args[0] != "POST" for c in request.call_args_list)  # nothing created
 
 
-async def test_finalize_rejects_backdated_date():
-    from toconline_mcp.tools.sales_documents import _assert_not_backdated
-
-    client = TocClient()
-    client.request = AsyncMock(  # type: ignore[method-assign]
-        return_value={"items": [{"date": "2026-06-15", "document_no": "FT 2026/17"}]}
-    )
-    with pytest.raises(ValueError):
-        await _assert_not_backdated(client, "FT", "2026-06-10")  # before last issued
-    await _assert_not_backdated(client, "FT", "2026-06-20")  # on/after is fine
-
-    # A future-dated draft (no document_no) doesn't constrain the series.
-    client.request.return_value = {"items": [{"date": "2026-12-31", "document_no": None}]}
-    await _assert_not_backdated(client, "FT", "2026-06-10")  # no raise
-
-
 async def test_delete_product_requires_confirm_then_deletes():
     tools, request = _register(products)
     with pytest.raises(ValueError):
