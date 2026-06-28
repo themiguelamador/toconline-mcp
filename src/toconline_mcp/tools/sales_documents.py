@@ -4,7 +4,7 @@ import asyncio
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from toconline_mcp.http.client import TocClient
 from toconline_mcp.http.jsonapi import build_resource_envelope
@@ -26,19 +26,35 @@ class SalesDocumentLine(BaseModel):
     """One line on a sales document.
 
     Either `item_id` (with `item_type`) or a free-text `description` must be
-    present. The v1 endpoint accepts both shapes.
+    present — TOCOnline rejects a line with neither. The v1 endpoint accepts
+    both shapes.
     """
+
+    model_config = ConfigDict(populate_by_name=True)
 
     item_type: str | None = Field(
         None, description="TOCOnline item type, usually `Product` or `Service`. Required when item_id is set."
     )
     item_id: str | None = Field(None, description="TOCOnline product or service id.")
-    description: str | None = Field(None, description="Free-text description when no item_id.")
+    description: str | None = Field(
+        None,
+        validation_alias=AliasChoices("description", "item_description"),
+        description="Line description (required unless item_id is set). Accepts `item_description` as an alias.",
+    )
     quantity: float = Field(..., gt=0)
     unit_price: float = Field(..., ge=0)
     unit_of_measure_id: str | None = Field(None, description="Unit of measure id from /api/units_of_measure.")
     tax_id: str | None = Field(None, description="Tax id from /api/taxes.")
     settlement_expression: str | None = Field(None, description="Line-level discount expression, e.g. '3'.")
+
+    @model_validator(mode="after")
+    def _require_description_or_item(self) -> "SalesDocumentLine":
+        if not self.description and not self.item_id:
+            raise ValueError(
+                "each sales document line needs `description` (free text) or `item_id` — "
+                "TOCOnline rejects lines with neither"
+            )
+        return self
 
 
 def register(mcp: FastMCP, client: TocClient) -> None:
@@ -113,11 +129,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         doc_task = client.request("GET", f"{_DOCS_PATH}/{safe_id}")
         if not include_lines:
             return await doc_task
-        lines_task = client.request(
-            "GET",
-            _LINES_PATH,
-            params=build_list_params(page_size=100, filters={"document_id": safe_id}),
-        )
+        # Nested route — the flat /commercial_sales_document_lines?filter[document_id]
+        # query raises JA011, so fetch lines via /{id}/lines instead.
+        lines_task = client.request("GET", f"{_DOCS_PATH}/{safe_id}/lines")
         doc, lines = await asyncio.gather(doc_task, lines_task)
         if isinstance(doc, dict):
             doc["lines"] = lines.get("items") if isinstance(lines, dict) else lines
@@ -345,11 +359,7 @@ async def _create_draft_legacy(
     try:
         doc, lines_resp = await asyncio.gather(
             client.request("GET", f"{_DOCS_PATH}/{new_id}"),
-            client.request(
-                "GET",
-                _LINES_PATH,
-                params=build_list_params(page_size=200, filters={"document_id": new_id}),
-            ),
+            client.request("GET", f"{_DOCS_PATH}/{new_id}/lines"),
         )
         if isinstance(doc, dict):
             doc["lines"] = lines_resp.get("items") if isinstance(lines_resp, dict) else lines_resp

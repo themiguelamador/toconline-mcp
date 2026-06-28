@@ -60,6 +60,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         not require authentication to open — give it to a user and they can
         download the PDF in their browser. It typically expires after a few
         hours.
+
+        Only finalized documents have a PDF. A draft (status 0) returns a
+        "not ready for print" error — finalize it first.
         """
         safe_id = require_id(id, "id")
         response = await client.request(

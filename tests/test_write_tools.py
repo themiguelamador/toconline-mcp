@@ -11,10 +11,12 @@ from toconline_mcp.tools import (
     products,
     purchases,
     reference,
+    sales_documents,
     sales_receipts,
     services,
     suppliers,
 )
+from toconline_mcp.tools.sales_documents import SalesDocumentLine
 
 
 def _register(module) -> tuple[dict, AsyncMock]:
@@ -69,6 +71,32 @@ async def test_create_product_sets_item_family_id_attribute():
         "item_family_id": "7",
     }
     assert "relationships" not in body["data"]
+
+
+def test_sales_line_accepts_item_description_alias_and_canonicalizes():
+    # The API field is `description`; callers often send `item_description`.
+    line = SalesDocumentLine(item_description="Consulting", quantity=1, unit_price=10)
+    assert line.description == "Consulting"
+    assert line.model_dump(exclude_none=True)["description"] == "Consulting"
+    assert "item_description" not in line.model_dump()  # canonicalized
+
+
+def test_sales_line_rejects_line_with_neither_description_nor_item():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        SalesDocumentLine(quantity=1, unit_price=10)  # API would reject this line
+    # item_id alone is fine (item supplies the description)
+    assert SalesDocumentLine(item_id="7", item_type="Service", quantity=1, unit_price=10).item_id == "7"
+
+
+async def test_get_sales_document_fetches_lines_via_nested_route():
+    # flat ?filter[document_id] raises JA011; must use /{id}/lines.
+    tools, request = _register(sales_documents)
+    await tools["get_sales_document"](id="5")
+    paths = [call.args[1] for call in request.call_args_list]
+    assert "/api/commercial_sales_documents/5/lines" in paths
+    assert not any("commercial_sales_document_lines" in p for p in paths)  # no flat filter route
 
 
 async def test_delete_product_requires_confirm_then_deletes():

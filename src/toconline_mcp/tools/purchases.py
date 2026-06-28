@@ -4,7 +4,7 @@ import asyncio
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from toconline_mcp.http.client import TocClient
 from toconline_mcp.http.jsonapi import build_resource_envelope
@@ -21,16 +21,31 @@ _V1_HEADERS = {"Content-Type": "application/json"}
 
 
 class PurchaseDocumentLine(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     item_type: str | None = Field(
         None,
         description="TOCOnline item type: `Product`, `Service`, or `Purchases::ExpenseCategory`.",
     )
     item_id: str | None = Field(None, description="Id matching `item_type` (product/service/expense_category).")
-    description: str | None = Field(None, description="Free-text description when no item_id.")
+    description: str | None = Field(
+        None,
+        validation_alias=AliasChoices("description", "item_description"),
+        description="Line description (required unless item_id is set). Accepts `item_description` as an alias.",
+    )
     quantity: float = Field(..., gt=0)
     unit_price: float = Field(..., ge=0)
     unit_of_measure_id: str | None = Field(None, description="Unit of measure id.")
     tax_id: str | None = Field(None, description="Tax id.")
+
+    @model_validator(mode="after")
+    def _require_description_or_item(self) -> "PurchaseDocumentLine":
+        if not self.description and not self.item_id:
+            raise ValueError(
+                "each purchase document line needs `description` (free text) or `item_id` — "
+                "TOCOnline rejects lines with neither"
+            )
+        return self
 
 
 def register(mcp: FastMCP, client: TocClient) -> None:
@@ -89,11 +104,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         doc_task = client.request("GET", f"{_DOCS_PATH}/{safe_id}")
         if not include_lines:
             return await doc_task
-        lines_task = client.request(
-            "GET",
-            _LINES_PATH,
-            params=build_list_params(page_size=100, filters={"document_id": safe_id}),
-        )
+        # Nested route — the flat /commercial_purchases_document_lines?filter[document_id]
+        # query raises JA011, so fetch lines via /{id}/lines instead.
+        lines_task = client.request("GET", f"{_DOCS_PATH}/{safe_id}/lines")
         doc, lines = await asyncio.gather(doc_task, lines_task)
         if isinstance(doc, dict):
             doc["lines"] = lines.get("items") if isinstance(lines, dict) else lines
