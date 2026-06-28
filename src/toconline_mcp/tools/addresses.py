@@ -8,6 +8,7 @@ from pydantic import Field
 from toconline_mcp.http.client import TocClient
 from toconline_mcp.http.jsonapi import build_resource_envelope
 from toconline_mcp.tools._helpers import build_list_params, require_id
+from toconline_mcp.util.errors import ApiError
 
 _RESOURCE = "addresses"
 _PATH = "/api/addresses"
@@ -29,21 +30,24 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             str | None, Field(description="Comma-separated subset of fields to return.")
         ] = None,
     ) -> dict[str, Any]:
-        """List addresses. Normally scope to a customer_id or supplier_id."""
-        filters = {}
-        if customer_id:
-            filters["customer_id"] = require_id(customer_id, "customer_id")
-        if supplier_id:
-            filters["supplier_id"] = require_id(supplier_id, "supplier_id")
-        return await client.request(
-            "GET",
-            _PATH,
-            params=build_list_params(
-                page_size=page_size, page_number=page_number,
-                filters=filters, sort=sort,
-                fields={_RESOURCE: fields} if fields else None,
-            ),
+        """List addresses. Normally scope to a customer_id or supplier_id.
+
+        Scoping uses the nested route (`/api/customers/{id}/addresses`); the
+        flat `/api/addresses?filter[customer_id]=` query raises JA011.
+        """
+        if customer_id and supplier_id:
+            raise ValueError("provide at most one of customer_id or supplier_id")
+        params = build_list_params(
+            page_size=page_size, page_number=page_number, sort=sort,
+            fields={_RESOURCE: fields} if fields else None,
         )
+        if customer_id:
+            path = f"/api/customers/{require_id(customer_id, 'customer_id')}/addresses"
+        elif supplier_id:
+            path = f"/api/suppliers/{require_id(supplier_id, 'supplier_id')}/addresses"
+        else:
+            path = _PATH
+        return await client.request("GET", path, params=params)
 
     @mcp.tool()
     async def get_address(
@@ -76,13 +80,13 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         via the `addressable_type` ("Customer" | "Supplier") and
         `addressable_id` attributes, not a JSON:API relationship.
 
-        Quirk: TOCOnline can return `[400] O valor indicado já existe na tabela`
-        *even when the address was actually created* (the unique constraint is
-        on address_detail + postcode for the same parent). If you hit that
-        error, don't retry — re-check with `list_addresses(customer_id=...)`:
-        the address is likely already there. Make sure the parent's
-        `main_address_id` is set, otherwise sales/purchase documents won't
-        denormalize the address onto the document header.
+        Returns the created (or, on a duplicate, the existing) address re-fetched
+        by id, so the parent link and all fields are populated — the raw POST
+        echo omits them, which makes the address look empty/unlinked.
+
+        TOCOnline enforces a uniqueness constraint on address_detail + postcode
+        per parent and raises `[400] já existe na tabela` on a duplicate; this
+        tool catches that and returns the existing address (idempotent).
         """
         if bool(customer_id) == bool(supplier_id):
             raise ValueError("provide exactly one of customer_id or supplier_id")
@@ -102,7 +106,23 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             "addressable_id": addressable_id,
         }
         envelope = build_resource_envelope(_RESOURCE, attributes)
-        return await client.request("POST", _PATH, json=envelope)
+        parent = "customers" if customer_id else "suppliers"
+        parent_path = f"/api/{parent}/{addressable_id}/addresses"
+        try:
+            created = await client.request("POST", _PATH, json=envelope)
+        except ApiError as e:
+            # "já existe na tabela" fires on a duplicate (address_detail + postcode
+            # for the same parent). Be idempotent: return the existing address.
+            if e.status == 400 and "já existe" in str(e).lower():
+                listing = await client.request("GET", parent_path)
+                for addr in (listing.get("items") if isinstance(listing, dict) else []) or []:
+                    if addr.get("address_detail") == address_detail and addr.get("postcode") == postcode:
+                        return addr
+            raise
+        # The POST echo omits resolved relationships (customer/supplier come back
+        # null), making the address look unlinked. Re-fetch for a truthful record.
+        new_id = created.get("id") if isinstance(created, dict) else None
+        return await client.request("GET", f"{_PATH}/{new_id}") if new_id else created
 
     @mcp.tool()
     async def update_address(

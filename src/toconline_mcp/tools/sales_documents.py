@@ -33,9 +33,16 @@ class SalesDocumentLine(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     item_type: str | None = Field(
-        None, description="TOCOnline item type, usually `Product` or `Service`. Required when item_id is set."
+        None, description="Item type when referencing the catalog: `Product` or `Service`. Required with item_id."
     )
-    item_id: str | None = Field(None, description="TOCOnline product or service id.")
+    item_id: str | None = Field(
+        None,
+        description=(
+            "Catalog product/service id (from list_products / list_services). When set with "
+            "item_type, the line inherits the item's code, unit, and (if not overridden) price/VAT — "
+            "`item_code` is filled automatically. Omit for a free-text line and set `description`."
+        ),
+    )
     description: str | None = Field(
         None,
         validation_alias=AliasChoices("description", "item_description"),
@@ -44,7 +51,10 @@ class SalesDocumentLine(BaseModel):
     quantity: float = Field(..., gt=0)
     unit_price: float = Field(..., ge=0)
     unit_of_measure_id: str | None = Field(None, description="Unit of measure id from /api/units_of_measure.")
-    tax_id: str | None = Field(None, description="Tax id from /api/taxes.")
+    tax_code: str | None = Field(
+        None, description="VAT rate code — `NOR`, `INT`, `RED`, `ISE`. Simpler than tax_id; the line resolves the rate."
+    )
+    tax_id: str | None = Field(None, description="Tax id from /api/taxes. Prefer `tax_code` unless you need a specific tax row.")
     settlement_expression: str | None = Field(None, description="Line-level discount expression, e.g. '3'.")
 
     @model_validator(mode="after")

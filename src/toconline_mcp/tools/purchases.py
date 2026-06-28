@@ -36,7 +36,10 @@ class PurchaseDocumentLine(BaseModel):
     quantity: float = Field(..., gt=0)
     unit_price: float = Field(..., ge=0)
     unit_of_measure_id: str | None = Field(None, description="Unit of measure id.")
-    tax_id: str | None = Field(None, description="Tax id.")
+    tax_code: str | None = Field(
+        None, description="VAT rate code — `NOR`, `INT`, `RED`, `ISE`. Simpler than tax_id; the line resolves the rate."
+    )
+    tax_id: str | None = Field(None, description="Tax id. Prefer `tax_code` unless you need a specific tax row.")
 
     @model_validator(mode="after")
     def _require_description_or_item(self) -> "PurchaseDocumentLine":

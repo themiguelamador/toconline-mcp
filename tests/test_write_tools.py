@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from toconline_mcp.http.client import TocClient
 from toconline_mcp.tools import (
+    addresses,
     document_actions,
     products,
     purchases,
@@ -16,6 +17,7 @@ from toconline_mcp.tools import (
     services,
     suppliers,
 )
+from toconline_mcp.tools._helpers import build_list_params
 from toconline_mcp.tools.sales_documents import SalesDocumentLine
 
 
@@ -97,6 +99,42 @@ async def test_get_sales_document_fetches_lines_via_nested_route():
     paths = [call.args[1] for call in request.call_args_list]
     assert "/api/commercial_sales_documents/5/lines" in paths
     assert not any("commercial_sales_document_lines" in p for p in paths)  # no flat filter route
+
+
+def test_sparse_fields_drops_relationship_tokens():
+    # Relationship-derived names (*_id / *_ids) raise JA011 in sparse fieldsets.
+    params = build_list_params(
+        fields={"customers": "business_name,main_address_id,addresses_ids,tax_registration_number"}
+    )
+    assert params["fields[customers]"] == "business_name,tax_registration_number"
+
+
+def test_sales_line_carries_item_reference_and_tax_code():
+    line = SalesDocumentLine(
+        item_id="2", item_type="Service", description="Consulting",
+        quantity=1, unit_price=25, tax_code="NOR",
+    )
+    dumped = line.model_dump(exclude_none=True)
+    assert dumped["item_id"] == "2"
+    assert dumped["item_type"] == "Service"
+    assert dumped["tax_code"] == "NOR"
+
+
+async def test_list_addresses_uses_nested_route_for_customer():
+    # flat /api/addresses?filter[customer_id] raises JA011; use /customers/{id}/addresses.
+    tools, request = _register(addresses)
+    await tools["list_addresses"](customer_id="9")
+    path = request.call_args.args[1]
+    assert path == "/api/customers/9/addresses"
+
+
+async def test_create_address_refetches_for_truthful_record():
+    # POST echo omits the resolved parent link; tool re-fetches by id.
+    tools, request = _register(addresses)
+    await tools["create_address"](customer_id="9", address_detail="Rua X", city="Lisboa")
+    calls = [(c.args[0], c.args[1]) for c in request.call_args_list]
+    assert ("POST", "/api/addresses") in calls
+    assert ("GET", "/api/addresses/1") in calls  # re-fetch of the created id
 
 
 async def test_delete_product_requires_confirm_then_deletes():

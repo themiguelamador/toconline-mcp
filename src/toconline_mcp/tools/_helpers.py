@@ -78,6 +78,16 @@ def build_list_params(
         params["sort"] = sort
     if fields:
         for resource_type, field_list in fields.items():
-            if field_list:
-                params[f"fields[{resource_type}]"] = field_list
+            if not field_list:
+                continue
+            # Sparse fieldsets accept only scalar attributes. Relationship-derived
+            # names (flattened to `<rel>_id` / `<rel>_ids`) are rejected with JA011,
+            # so drop them rather than letting the whole request fail.
+            kept = [
+                f.strip()
+                for f in field_list.split(",")
+                if f.strip() and not f.strip().endswith(("_id", "_ids"))
+            ]
+            if kept:
+                params[f"fields[{resource_type}]"] = ",".join(kept)
     return params

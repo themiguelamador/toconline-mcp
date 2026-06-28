@@ -11,6 +11,24 @@ may land in minor versions.
 
 ## [Unreleased]
 
+### Fixed
+- Sparse fieldsets (`fields=`) now drop relationship-derived names
+  (`*_id` / `*_ids`), which the API rejects with JA011 — only scalar attributes
+  are sent, so a mixed request returns the valid subset instead of failing.
+- `list_addresses(customer_id=...)` / `(supplier_id=...)` use the nested route
+  (`/api/customers/{id}/addresses`); the flat `filter[customer_id]` query
+  raised JA011.
+- `create_address` re-fetches the created (or, on a duplicate, existing) address
+  by id so the parent link and all fields are populated — the raw POST echo
+  omits the resolved relationship, which made addresses look empty/unlinked. The
+  "já existe na tabela" duplicate error is now handled idempotently.
+
+### Added
+- Document lines (`create_sales_document` / `create_purchase_document`) accept a
+  `tax_code` (`NOR`/`INT`/`RED`/`ISE`) instead of only a numeric `tax_id`, and
+  clarify catalog referencing: set `item_id` + `item_type` to inherit the item's
+  code/unit/price (the legacy free-text-only behaviour was unclear).
+
 ## [0.2.0] - 2026-06-28
 
 Expanded the typed-tool surface to broad CRUD coverage, added the AT
