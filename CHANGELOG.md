@@ -11,33 +11,34 @@ may land in minor versions.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-28
+
+Fixes and capabilities from a second round of dogfooding real invoice emission,
+plus document-series selection.
+
 ### Added
 - `create_sales_document` takes an optional `series_id` to issue into a specific
   document series (a document_type can have several, each with its own
   numbering). Verified on the draft path; best-effort on the v1 finalize path.
 - `list_document_series` reference tool to discover series ids, prefixes, and
   which is the default.
+- Document lines (`create_sales_document` / `create_purchase_document`) accept a
+  `tax_code` (`NOR`/`INT`/`RED`/`ISE`) instead of only a numeric `tax_id`, and
+  clarify catalog referencing: set `item_id` + `item_type` to inherit the item's
+  code/unit/price (the legacy free-text-only behaviour was unclear).
 
 ### Fixed
-- `create_address` is now idempotent: it checks the parent's existing addresses
-  first and returns a match instead of creating a duplicate (TOCOnline allows
-  duplicate detail+postcode rows).
 - Sparse fieldsets (`fields=`) now drop relationship-derived names
   (`*_id` / `*_ids`), which the API rejects with JA011 — only scalar attributes
   are sent, so a mixed request returns the valid subset instead of failing.
 - `list_addresses(customer_id=...)` / `(supplier_id=...)` use the nested route
   (`/api/customers/{id}/addresses`); the flat `filter[customer_id]` query
   raised JA011.
-- `create_address` re-fetches the created (or, on a duplicate, existing) address
-  by id so the parent link and all fields are populated — the raw POST echo
-  omits the resolved relationship, which made addresses look empty/unlinked. The
-  "já existe na tabela" duplicate error is now handled idempotently.
-
-### Added
-- Document lines (`create_sales_document` / `create_purchase_document`) accept a
-  `tax_code` (`NOR`/`INT`/`RED`/`ISE`) instead of only a numeric `tax_id`, and
-  clarify catalog referencing: set `item_id` + `item_type` to inherit the item's
-  code/unit/price (the legacy free-text-only behaviour was unclear).
+- `create_address` re-fetches the created address by id so the parent link and
+  all fields are populated — the raw POST echo omits the resolved relationship,
+  which made addresses look empty/unlinked. It is also idempotent: it returns an
+  existing matching address (by detail + postcode) instead of creating a
+  duplicate, and handles the "já existe na tabela" error.
 
 ## [0.2.0] - 2026-06-28
 
@@ -88,6 +89,7 @@ found while dogfooding real invoice emission.
 - Initial TOCOnline MCP server: OAuth login, customer and sales-document tools,
   purchases, and a generic `api_request` escape hatch.
 
-[Unreleased]: https://github.com/themiguelamador/toconline-mcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/themiguelamador/toconline-mcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/themiguelamador/toconline-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/themiguelamador/toconline-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/themiguelamador/toconline-mcp/releases/tag/v0.1.0
