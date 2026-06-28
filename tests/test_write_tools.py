@@ -137,6 +137,39 @@ async def test_create_address_refetches_for_truthful_record():
     assert ("GET", "/api/addresses/1") in calls  # re-fetch of the created id
 
 
+async def test_create_address_dedupes_existing():
+    # If the parent already has a matching detail+postcode, return it, no POST.
+    tools, request = _register(addresses)
+
+    def _resp(method, path, **kw):
+        if method == "GET" and path == "/api/customers/9/addresses":
+            return {"items": [{"id": "55", "address_detail": "Rua X", "postcode": "1000-001"}]}
+        return {"id": "1"}
+
+    request.side_effect = _resp
+    result = await tools["create_address"](
+        customer_id="9", address_detail="Rua X", city="Lisboa", postcode="1000-001"
+    )
+    assert result["id"] == "55"
+    assert all(c.args[0] != "POST" for c in request.call_args_list)  # nothing created
+
+
+async def test_finalize_rejects_backdated_date():
+    from toconline_mcp.tools.sales_documents import _assert_not_backdated
+
+    client = TocClient()
+    client.request = AsyncMock(  # type: ignore[method-assign]
+        return_value={"items": [{"date": "2026-06-15", "document_no": "FT 2026/17"}]}
+    )
+    with pytest.raises(ValueError):
+        await _assert_not_backdated(client, "FT", "2026-06-10")  # before last issued
+    await _assert_not_backdated(client, "FT", "2026-06-20")  # on/after is fine
+
+    # A future-dated draft (no document_no) doesn't constrain the series.
+    client.request.return_value = {"items": [{"date": "2026-12-31", "document_no": None}]}
+    await _assert_not_backdated(client, "FT", "2026-06-10")  # no raise
+
+
 async def test_delete_product_requires_confirm_then_deletes():
     tools, request = _register(products)
     with pytest.raises(ValueError):

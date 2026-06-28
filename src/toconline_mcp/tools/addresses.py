@@ -108,16 +108,26 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         envelope = build_resource_envelope(_RESOURCE, attributes)
         parent = "customers" if customer_id else "suppliers"
         parent_path = f"/api/{parent}/{addressable_id}/addresses"
+
+        def _match(listing: Any) -> dict[str, Any] | None:
+            for addr in (listing.get("items") if isinstance(listing, dict) else []) or []:
+                if addr.get("address_detail") == address_detail and addr.get("postcode") == postcode:
+                    return addr
+            return None
+
+        # Idempotent: TOCOnline happily creates duplicate (detail+postcode) rows,
+        # so check the parent's existing addresses first and return a match.
+        existing = _match(await client.request("GET", parent_path))
+        if existing:
+            return existing
         try:
             created = await client.request("POST", _PATH, json=envelope)
         except ApiError as e:
-            # "já existe na tabela" fires on a duplicate (address_detail + postcode
-            # for the same parent). Be idempotent: return the existing address.
+            # Some tenants instead reject the duplicate with "já existe na tabela";
+            # fall back to returning the existing row.
             if e.status == 400 and "já existe" in str(e).lower():
-                listing = await client.request("GET", parent_path)
-                for addr in (listing.get("items") if isinstance(listing, dict) else []) or []:
-                    if addr.get("address_detail") == address_detail and addr.get("postcode") == postcode:
-                        return addr
+                if match := _match(await client.request("GET", parent_path)):
+                    return match
             raise
         # The POST echo omits resolved relationships (customer/supplier come back
         # null), making the address look unlinked. Re-fetch for a truthful record.

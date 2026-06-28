@@ -413,6 +413,12 @@ Addresses and contacts are separate JSON:API resources with an owning
 |---|---|
 | `api_request` | Generic `/api/*` passthrough for endpoints without typed tools. `POST`/`PATCH`/`PUT`/`DELETE` require `confirm=true`. |
 
+> **Listing a parent's children:** some collections can't be filtered flat —
+> `GET /api/commercial_sales_document_lines?filter[document_id]=…` and
+> `/api/addresses?filter[customer_id]=…` both return `JA011`. Use the nested
+> route instead: `/api/commercial_sales_documents/{id}/lines`,
+> `/api/customers/{id}/addresses`. The typed tools already do this.
+
 ### Response shape
 
 Responses are flattened from JSON:API — `data.attributes.*` fields are hoisted
