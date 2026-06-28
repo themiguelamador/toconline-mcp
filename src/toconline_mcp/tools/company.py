@@ -12,14 +12,5 @@ _PATH = "/api/current_company"
 def register(mcp: FastMCP, client: TocClient) -> None:
     @mcp.tool()
     async def get_current_company() -> dict[str, Any]:
-        """Return the authenticated company's own profile.
-
-        Includes `tax_registration_number` (NIPC for Portuguese companies),
-        `business_name`, `tax_country_region`, contact fields, `currency_id`,
-        `accountant_tax_registration_number`, and the linked `address_id`.
-
-        Use this when you need the reporting entity's own identity — for
-        example when producing tax-authority reports (Modelo 30, SAFT-PT),
-        where you need the company's NIPC as the reporter, not the customer's.
-        """
+        """Return the authenticated company's own profile (NIPC/tax number, business name, address, currency). Use for the reporting entity's identity in tax reports."""
         return await client.request("GET", _PATH)

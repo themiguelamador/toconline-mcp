@@ -27,9 +27,7 @@ _TABLES = [
     ("list_cash_accounts", "cash_accounts", "/api/cash_accounts",
      "List cash accounts (caixas) used for receipts/payments."),
     ("list_document_series", "commercial_document_series", "/api/commercial_document_series",
-     "List document series (séries). Each document_type can have several, each with its own "
-     "`prefix` and numbering; one is `is_default`. Pass a series id as `series_id` to "
-     "create_sales_document to issue into a specific series."),
+     "List document series (séries). A document_type can have several; pass a series id as `series_id` to create_sales_document."),
 ]
 
 

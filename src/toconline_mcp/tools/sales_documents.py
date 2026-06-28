@@ -83,28 +83,14 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         ] = None,
         sort: Annotated[
             str,
-            Field(
-                description=(
-                    "JSON:API sort expression. Prefix with `-` for descending. "
-                    "Defaults to `-date`. Examples: `-date`, `date,document_no`, `-id`, `-gross_total`."
-                )
-            ),
+            Field(description="JSON:API sort. Default newest first."),
         ] = "-date,-id",
         fields: Annotated[
             str | None,
-            Field(
-                description=(
-                    "Comma-separated subset of fields to return. Hugely reduces response size — "
-                    "sales docs have 117 fields. Common subset: `document_no,date,gross_total,status,customer_id`."
-                )
-            ),
+            Field(description="Comma-separated subset of fields to return (sales docs have many fields)."),
         ] = None,
     ) -> dict[str, Any]:
-        """List commercial sales documents, newest first by default.
-
-        Use `page_number` + `page_size` to paginate, and `fields` to limit
-        the response to just the columns you need.
-        """
+        """List commercial sales documents, newest first by default. Use `fields` to limit the columns returned."""
         filters: dict[str, Any] = {}
         if document_type:
             filters["document_type"] = document_type
@@ -254,14 +240,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Must be true. Only drafts can be deleted; finalized documents must be voided instead."),
         ] = False,
     ) -> dict[str, Any]:
-        """Delete a draft sales document.
-
-        Use this for cleaning up unfinalised drafts (e.g. orphans left behind
-        by a failed `create_sales_document` call, or experimental drafts you
-        no longer want). Will fail if the document has been finalised
-        (status != 0) — finalised documents must be voided via a credit note,
-        not deleted.
-        """
+        """Delete a draft sales document. Requires confirm=true. Only drafts (status 0) can be deleted; finalized documents must be voided via a credit note instead."""
         if not confirm:
             raise ValueError("delete_sales_document requires confirm=true")
         safe_id = require_id(id, "id")

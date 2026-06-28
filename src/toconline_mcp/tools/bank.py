@@ -77,22 +77,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             str | None, Field(description="Comma-separated subset of fields to return.")
         ] = None,
     ) -> dict[str, Any]:
-        """List company bank accounts (name, IBAN, SWIFT, type).
-
-        Each item is enriched with two derived fields:
-
-          * `pais_conta` — ISO country code, from `iban[:2]` (e.g. `PT`, `GB`).
-          * `id_banco` — bank identifier:
-              - `PT` accounts: first 4 digits of `nib` (e.g. `0007` Novo Banco,
-                `0035` Caixa Geral de Depósitos) — matches AT Tabelas_apoio.
-              - Foreign accounts: `swift` when present, else `iban[4:8]`.
-
-        Both are `None` when the underlying `iban`/`nib`/`swift` is empty — a
-        TOCOnline data-completeness issue to fix in the web UI or via PATCH.
-
-        These derived fields are what Portuguese reports like Modelo 30
-        (foreign payments declaration) and IES bank annexes ask for.
-        """
+        """List company bank accounts (name, IBAN, SWIFT, type). Each item adds derived `pais_conta` (ISO country) and `id_banco` (bank identifier) fields used by Portuguese tax reports."""
         r = await client.request(
             "GET",
             _ACCOUNTS_PATH,
@@ -107,8 +92,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     async def get_bank_account(
         id: Annotated[str, Field(description="Bank account id.")],
     ) -> dict[str, Any]:
-        """Fetch a single bank account by id, enriched with derived `id_banco`
-        and `pais_conta` fields (see `list_bank_accounts` for the rules)."""
+        """Fetch a single bank account by id, with derived `id_banco` and `pais_conta` fields."""
         r = await client.request("GET", f"{_ACCOUNTS_PATH}/{require_id(id, 'id')}")
         return _enrich_accounts_response(r)
 
@@ -131,30 +115,14 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         ] = None,
         sort: Annotated[
             str,
-            Field(
-                description=(
-                    "JSON:API sort. Default `-transaction_date,-id` (newest first, stable). "
-                    "Other useful: `-value` (largest debits/credits first), `transaction_date`."
-                )
-            ),
+            Field(description="JSON:API sort. Default newest first."),
         ] = "-transaction_date,-id",
         fields: Annotated[
             str | None,
-            Field(
-                description=(
-                    "Comma-separated subset of fields. Available: id, bank_account_id, "
-                    "transaction_date, posted_date, description, payer_iban, value, "
-                    "imported_balance, annotation, other_info, track_id, seqord."
-                )
-            ),
+            Field(description="Comma-separated subset of fields to return."),
         ] = None,
     ) -> dict[str, Any]:
-        """List bank transactions (movements) imported into TOCOnline.
-
-        All filters are exact match. To get a date range, make one call per
-        day or page through without a date filter. `value` is signed
-        (negative for debits, positive for credits).
-        """
+        """List bank transactions imported into TOCOnline. Filters are exact match (no date ranges). `value` is signed (negative=debit, positive=credit)."""
         filters: dict[str, Any] = {}
         if bank_account_id:
             filters["bank_account_id"] = require_id(bank_account_id, "bank_account_id")

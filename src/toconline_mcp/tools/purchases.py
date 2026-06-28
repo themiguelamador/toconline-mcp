@@ -133,11 +133,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             str | None, Field(description="Document series id from /api/commercial_document_series.")
         ] = None,
     ) -> dict[str, Any]:
-        """Create a purchase document with lines in a single v1 call.
-
-        Supplier identity fields (tax number, business name) are denormalized
-        from the supplier record.
-        """
+        """Create a purchase document with lines."""
         require_iso_date(date, "date")
         safe_supplier_id = require_id(supplier_id, "supplier_id")
         if due_date:
@@ -218,12 +214,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         ] = None,
         observations: Annotated[str | None, Field(description="Optional observations.")] = None,
     ) -> dict[str, Any]:
-        """Create a purchase payment record.
-
-        Note: this creates the payment itself. To settle specific purchase
-        document lines against it, add `create_purchase_payment_line` calls
-        referencing this payment's id.
-        """
+        """Create a purchase payment record. To settle specific purchase document lines, add create_purchase_payment_line calls referencing this payment's id."""
         require_iso_date(date, "date")
         safe_supplier_id = require_id(supplier_id, "supplier_id")
         attributes = {
@@ -259,13 +250,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         settlement_percentage: Annotated[float | None, Field(description="Early-settlement discount percentage.")] = None,
         cashed_vat_amount: Annotated[float | None, Field(description="Cashed-VAT amount, if applicable.")] = None,
     ) -> dict[str, Any]:
-        """Settle a purchase document line against a payment (settlement line).
-
-        Links an existing payment to a payable so the document line is marked
-        paid. Note the payable is a document *line* (`payable_id`), unlike sales
-        receipts which settle whole documents. Field values are the caller's
-        responsibility — this tool only builds the documented payload.
-        """
+        """Settle a purchase document line against a payment. The payable is a document LINE id (not the document id), unlike sales receipts which settle whole documents."""
         attributes = {
             "payment_id": require_id(payment_id, "payment_id"),
             "payable_id": require_id(payable_id, "payable_id"),

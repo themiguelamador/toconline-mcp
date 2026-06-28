@@ -50,15 +50,7 @@ def register(mcp: FastMCP) -> None:
             int, Field(description="Local port for the OAuth callback listener.", ge=1024, le=65535),
         ] = 53683,
     ) -> dict[str, Any]:
-        """Run the Google OAuth browser flow and store Gmail credentials.
-
-        You must register `http://127.0.0.1:<redirect_port>/callback` as a
-        redirect URI on your Google Cloud OAuth client, and enable the
-        Gmail API for the project. Scope used: gmail.modify (read + label
-        changes; does not allow permanent delete or send).
-
-        Blocks for up to 3 minutes waiting for the browser callback.
-        """
+        """Run the Google OAuth browser flow and store Gmail credentials. Requires `http://127.0.0.1:<redirect_port>/callback` registered as a redirect URI and the Gmail API enabled. Scope: gmail.modify (read + label, no delete/send). Blocks up to 3 minutes."""
         async with _login_lock:
             inputs = GmailSetupInputs(
                 client_id=client_id, client_secret=client_secret, redirect_port=redirect_port
@@ -87,13 +79,7 @@ def register(mcp: FastMCP) -> None:
     async def gmail_search_messages(
         query: Annotated[
             str,
-            Field(
-                description=(
-                    "Gmail search query — same syntax as the Gmail search bar. "
-                    "Examples: `has:attachment filename:pdf from:billing@ after:2026/01/01`, "
-                    "`label:UNREAD has:attachment`, `subject:invoice`."
-                )
-            ),
+            Field(description="Gmail search query (same syntax as the Gmail search bar)."),
         ],
         max_results: Annotated[
             int,
@@ -104,13 +90,7 @@ def register(mcp: FastMCP) -> None:
             Field(description="If true, expand each result with attachment metadata."),
         ] = True,
     ) -> dict[str, Any]:
-        """Search Gmail and return compact message metadata.
-
-        Each item has `id`, `thread_id`, `from`, `subject`, `date`, `snippet`,
-        `label_ids`. If `include_attachments=true`, each item also has
-        `attachments`: a list of `{filename, mime_type, attachment_id, size}`
-        you can feed to `gmail_download_attachment`.
-        """
+        """Search Gmail and return compact message metadata. With include_attachments, each item also lists attachments (with attachment_id) for gmail_download_attachment."""
         listing = await _client.list_messages(query=query, max_results=max_results)
         ids = [m["id"] for m in (listing.get("messages") or []) if m.get("id")]
         if not ids:
@@ -164,35 +144,14 @@ def register(mcp: FastMCP) -> None:
         ],
         save_dir: Annotated[
             str,
-            Field(
-                description=(
-                    "Absolute path to an existing directory where the file will be saved. "
-                    "Point at a Google-Drive/iCloud-synced folder if you want cloud sync — "
-                    "the OS syncs transparently."
-                )
-            ),
+            Field(description="Absolute path to an existing directory to save the file in."),
         ],
         filename: Annotated[
             str | None,
-            Field(
-                description=(
-                    "Override the saved filename. If omitted, uses the filename from the "
-                    "email (sanitized). If a file of that name already exists, ` (N)` is "
-                    "appended before the extension to avoid overwriting."
-                )
-            ),
+            Field(description="Override the saved filename. Defaults to the email's filename; ` (N)` is appended to avoid overwriting."),
         ] = None,
     ) -> dict[str, Any]:
-        """Download one attachment to `save_dir`. Returns the saved path and size.
-
-        Filename resolution:
-          * If `filename` is not provided, we fetch the message and look up the
-            attachment part — using both its filename header and its MIME type
-            to produce a meaningful extension (e.g. `.pdf`, `.jpg`, `.xlsx`).
-          * A user-provided `filename` is used as-is unless it lacks an
-            extension or ends in `.bin` — then the part's MIME type supplies
-            the correct extension.
-        """
+        """Download one attachment to `save_dir`. Returns the saved path and size. The file extension is inferred from the attachment's MIME type when needed."""
         from toconline_mcp.gmail.client import _ensure_extension
 
         directory = Path(save_dir).expanduser()
@@ -229,23 +188,14 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def gmail_list_labels() -> dict[str, Any]:
-        """List Gmail labels (system + user) with their ids.
-
-        Use this to resolve a name like `Imported/TOCOnline` to its id before
-        calling `gmail_add_label_to_message`.
-        """
+        """List Gmail labels (system + user) with their ids. Use to resolve a label name to its id before adding it to a message."""
         return await _client.list_labels()
 
     @mcp.tool()
     async def gmail_create_label(
         name: Annotated[
             str,
-            Field(
-                description=(
-                    "Label name. Use `/` for nested labels (e.g. `Imported/TOCOnline`). "
-                    "Returns the created label including its `id`."
-                )
-            ),
+            Field(description="Label name. Use `/` for nested labels (e.g. `Imported/TOCOnline`)."),
         ],
     ) -> dict[str, Any]:
         """Create a Gmail label. Fails if a label of the same name already exists."""

@@ -45,25 +45,10 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         id: Annotated[str, Field(description="Document id (sales doc, sales receipt, or purchase doc).")],
         document_kind: Annotated[
             Literal["Document", "Receipt", "PurchasesDocument"],
-            Field(
-                description=(
-                    "`Document` for sales documents, `Receipt` for sales receipts, "
-                    "`PurchasesDocument` for purchase documents."
-                )
-            ),
+            Field(description="`Document` (sales doc), `Receipt` (sales receipt), or `PurchasesDocument` (purchase doc)."),
         ] = "Document",
     ) -> dict[str, Any]:
-        """Get a signed, shareable URL to a PDF render of a document or receipt.
-
-        Returns a short-lived URL on `app14.toconline.pt` (or equivalent for
-        your tenant) that serves the rendered PDF. The URL is signed and does
-        not require authentication to open — give it to a user and they can
-        download the PDF in their browser. It typically expires after a few
-        hours.
-
-        Only finalized documents have a PDF. A draft (status 0) returns a
-        "not ready for print" error — finalize it first.
-        """
+        """Get a signed, shareable, short-lived URL to a PDF render of a document or receipt. Only finalized documents have a PDF; finalize a draft first."""
         safe_id = require_id(id, "id")
         response = await client.request(
             "GET",
@@ -88,11 +73,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="`Document` for a sales document, `Receipt` for a sales receipt."),
         ] = "Document",
     ) -> dict[str, Any]:
-        """Send a sales document or receipt to a recipient by email.
-
-        Uses TOCOnline's built-in email delivery — the message arrives from
-        TOCOnline's mail servers with your document attached / linked.
-        """
+        """Send a sales document or receipt to a recipient via TOCOnline's built-in email delivery."""
         safe_id = require_id(id, "id")
         envelope = {
             "data": {
@@ -117,11 +98,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Must be true. Finalization is fiscally binding and cannot be undone."),
         ] = False,
     ) -> dict[str, Any]:
-        """Finalize (issue) a draft sales document.
-
-        Once finalized, the document becomes fiscally valid and immutable.
-        Requires `confirm=true` because the operation cannot be reversed.
-        """
+        """Finalize (issue) a draft sales document. Becomes fiscally valid and immutable; irreversible, requires confirm=true."""
         if not confirm:
             raise ValueError(
                 "finalize_sales_document requires confirm=true. "
@@ -141,7 +118,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Must be true. Finalization is binding."),
         ] = False,
     ) -> dict[str, Any]:
-        """Finalize a draft purchase document."""
+        """Finalize a draft purchase document. Binding; requires confirm=true."""
         if not confirm:
             raise ValueError("finalize_purchase_document requires confirm=true")
         safe_id = require_id(id, "id")
@@ -158,13 +135,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Must be true. Communicating to the AT is a binding fiscal action."),
         ] = False,
     ) -> dict[str, Any]:
-        """Communicate a finalized sales document to the AT (Portuguese tax authority).
-
-        Triggers TOCOnline's `send_document_at_webservice` action. The document
-        must already be finalized. Requires `confirm=true` because the report is
-        a binding fiscal submission. The response carries the AT communication
-        status/code returned by the webservice.
-        """
+        """Communicate a finalized sales document to the AT (Portuguese tax authority). Document must be finalized first; binding fiscal submission, requires confirm=true."""
         if not confirm:
             raise ValueError("communicate_sales_document_at requires confirm=true")
         safe_id = require_id(id, "id")
@@ -182,7 +153,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Must be true. Communicating to the AT is a binding fiscal action."),
         ] = False,
     ) -> dict[str, Any]:
-        """Communicate a finalized purchase document to the AT (Portuguese tax authority)."""
+        """Communicate a finalized purchase document to the AT (Portuguese tax authority). Binding fiscal submission, requires confirm=true."""
         if not confirm:
             raise ValueError("communicate_purchase_document_at requires confirm=true")
         safe_id = require_id(id, "id")
@@ -199,7 +170,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             bool, Field(description="Must be true. Voiding cannot be reversed.")
         ] = False,
     ) -> dict[str, Any]:
-        """Void (anular) a sales receipt."""
+        """Void (anular) a sales receipt. Irreversible; requires confirm=true."""
         if not confirm:
             raise ValueError("void_sales_receipt requires confirm=true")
         safe_id = require_id(id, "id")
@@ -215,7 +186,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             bool, Field(description="Must be true. Voiding cannot be reversed.")
         ] = False,
     ) -> dict[str, Any]:
-        """Void (anular) a purchase document."""
+        """Void (anular) a purchase document. Irreversible; requires confirm=true."""
         if not confirm:
             raise ValueError("void_purchase_document requires confirm=true")
         safe_id = require_id(id, "id")

@@ -31,12 +31,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             str | None, Field(description="Comma-separated subset of fields to return.")
         ] = None,
     ) -> dict[str, Any]:
-        """List services. All filters are exact match.
-
-        Services live at `/api/services`, separate from `/api/products`. Sales/
-        purchase document lines distinguish them via `item_type` (`Service`
-        vs `Product`).
-        """
+        """List services. All filters are exact match. Services are separate from products; document lines distinguish them via item_type (`Service` vs `Product`)."""
         filters = {
             "item_description": item_description,
             "item_code": item_code,

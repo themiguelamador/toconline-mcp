@@ -75,11 +75,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Contact categories (e.g. ['general']). Defaults to ['general'] if omitted."),
         ] = None,
     ) -> dict[str, Any]:
-        """Create a contact attached to a customer or supplier.
-
-        Polymorphic association via `contactable_type` ("Customer" | "Supplier")
-        and `contactable_id` attributes.
-        """
+        """Create a contact attached to a customer or supplier. Provide exactly one of customer_id or supplier_id."""
         if bool(customer_id) == bool(supplier_id):
             raise ValueError("provide exactly one of customer_id or supplier_id")
         if customer_id:

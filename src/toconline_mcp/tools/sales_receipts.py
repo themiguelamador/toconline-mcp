@@ -71,12 +71,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         ] = None,
         observations: Annotated[str | None, Field(description="Optional observations.")] = None,
     ) -> dict[str, Any]:
-        """Create a sales receipt (customer payment) record.
-
-        Note: this creates the receipt itself. To settle specific sales
-        documents against it, add `create_sales_receipt_line` calls referencing
-        this receipt's id.
-        """
+        """Create a sales receipt (customer payment) record. To settle specific sales documents, add create_sales_receipt_line calls referencing this receipt's id."""
         require_iso_date(date, "date")
         safe_customer_id = require_id(customer_id, "customer_id")
         attributes = {
@@ -114,12 +109,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         settlement_percentage: Annotated[float | None, Field(description="Early-settlement discount percentage.")] = None,
         cashed_vat_amount: Annotated[float | None, Field(description="Cashed-VAT amount, if applicable.")] = None,
     ) -> dict[str, Any]:
-        """Settle a sales document against a receipt (settlement line).
-
-        Links an existing receipt to a receivable so the document is marked
-        paid. Field values (how much settles what) are the caller's
-        responsibility — this tool only builds the documented payload.
-        """
+        """Settle a sales document against a receipt (settlement line), marking it paid."""
         attributes = {
             "receipt_id": require_id(receipt_id, "receipt_id"),
             "receivable_id": require_id(receivable_id, "receivable_id"),

@@ -32,12 +32,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Also make a live API call to confirm the token actually works (default true)."),
         ] = True,
     ) -> dict[str, Any]:
-        """Report whether TOCOnline credentials are configured and usable.
-
-        With verify=true (default) makes one cheap authenticated call so the
-        result reflects whether the token actually works (and refreshes it if
-        needed), not just the cached local expiry.
-        """
+        """Report whether TOCOnline credentials are configured and usable. With verify=true, makes one live call to confirm the token works."""
         path = credentials_path()
         try:
             creds = load_credentials(path)
@@ -87,16 +82,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Local port for the OAuth callback listener.", ge=1024, le=65535),
         ] = DEFAULT_REDIRECT_PORT,
     ) -> dict[str, Any]:
-        """Open a browser and complete OAuth login against TOCOnline.
-
-        The user must have registered `http://127.0.0.1:<redirect_port>/callback`
-        as a redirect URI in their TOCOnline integration. Credentials are stored
-        at `~/.config/toconline-mcp/credentials.json` (mode 0600) and picked up
-        by subsequent tool calls without restarting the server.
-
-        This tool blocks for up to 3 minutes while waiting for the browser
-        callback; ask the user to complete the consent promptly.
-        """
+        """Open a browser and complete OAuth login against TOCOnline. Requires `http://127.0.0.1:<redirect_port>/callback` registered as a redirect URI. Blocks up to 3 minutes for the browser callback."""
         async with _login_lock:
             inputs = SetupInputs(
                 client_id=client_id,

@@ -120,11 +120,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             str | None, Field(description="Accounting ledger number (conta).")
         ] = None,
     ) -> dict[str, Any]:
-        """Create a supplier. Returns the created record.
-
-        Contacts (email/phone) and addresses are separate resources — use
-        `create_contact` / `create_address` with this supplier's id afterwards.
-        """
+        """Create a supplier. Contacts and addresses are separate resources — use create_contact / create_address with this supplier's id afterwards."""
         attrs = _supplier_attributes(
             business_name=business_name,
             tax_registration_number=tax_registration_number,
