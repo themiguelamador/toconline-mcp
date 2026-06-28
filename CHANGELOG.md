@@ -11,6 +11,19 @@ may land in minor versions.
 
 ## [Unreleased]
 
+### Fixed
+- Token refresh no longer fails once the initial access token expires. The
+  refresh response often omits `refresh_token` (reused) and `expires_in`, which
+  the parser wrongly required — it now reuses the previous refresh token and
+  defaults the lifetime. Also recovers from out-of-band re-`setup` by reloading
+  credentials from disk (no process restart) and retries a rotated token once.
+
+### Changed
+- `auth_status` makes a live API call by default (`verify=true`) so it reflects
+  whether the token actually works, not just the cached local expiry; the call
+  also triggers a normal refresh, letting a stale-but-refreshable token
+  self-heal. Pass `verify=false` for the old fast, offline check.
+
 ## [0.3.0] - 2026-06-28
 
 Fixes and capabilities from a second round of dogfooding real invoice emission,

@@ -53,6 +53,19 @@ async def test_refresh_token_returns_new_pair():
 
 
 @respx.mock
+async def test_refresh_token_reuses_old_token_when_response_omits_it():
+    # TKT-9: TOCOnline's refresh response can omit refresh_token (and expires_in);
+    # we must reuse the previous refresh token instead of erroring.
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": "a2"})
+    )
+    tokens = await refresh_token_async(TOKEN_URL, "cid", "csec", "OLD")
+    assert tokens.access_token == "a2"
+    assert tokens.refresh_token == "OLD"  # reused
+    assert tokens.expires_at > 0
+
+
+@respx.mock
 async def test_refresh_token_raises_auth_error_on_invalid_grant():
     respx.post(TOKEN_URL).mock(
         return_value=httpx.Response(400, json={"error": "invalid_grant"})

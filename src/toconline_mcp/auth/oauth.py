@@ -22,19 +22,34 @@ def _basic_auth_header(client_id: str, client_secret: str) -> str:
     return "Basic " + base64.b64encode(raw).decode()
 
 
-def _parse_token_payload(payload: dict) -> TokenResponse:
+_DEFAULT_EXPIRES_IN = 3600  # conservative fallback when the provider omits expires_in
+
+
+def _parse_token_payload(
+    payload: dict, *, fallback_refresh_token: str | None = None
+) -> TokenResponse:
+    """Parse a token endpoint response.
+
+    On a refresh, OAuth providers commonly return only a new `access_token` and
+    reuse the existing refresh token (and may omit `expires_in`). Pass
+    `fallback_refresh_token` so a refresh response without a `refresh_token`
+    keeps using the previous one instead of failing — that omission was breaking
+    every refresh after the initial token expired.
+    """
     access_token = payload.get("access_token")
-    refresh_token = payload.get("refresh_token")
-    expires_in = payload.get("expires_in")
-    if not access_token or not refresh_token or expires_in is None:
+    if not access_token:
+        raise AuthError("Token endpoint response missing access_token.")
+    refresh_token = payload.get("refresh_token") or fallback_refresh_token
+    if not refresh_token:
         raise AuthError(
-            "Token endpoint response missing access_token, refresh_token, or expires_in."
+            "Token endpoint response missing refresh_token and no previous token to reuse."
         )
+    expires_in = payload.get("expires_in")
     now = int(time.time())
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        expires_at=now + int(expires_in),
+        expires_at=now + int(expires_in if expires_in is not None else _DEFAULT_EXPIRES_IN),
         obtained_at=now,
     )
 
@@ -101,4 +116,5 @@ async def refresh_token_async(
             f"Token refresh returned {response.status_code}: {response.text[:500]}. "
             "Run `toconline-mcp setup` to re-authenticate."
         )
-    return _parse_token_payload(response.json())
+    # Reuse the current refresh token if the response doesn't rotate it.
+    return _parse_token_payload(response.json(), fallback_refresh_token=refresh_token)

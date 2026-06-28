@@ -26,11 +26,19 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     _login_lock = asyncio.Lock()
 
     @mcp.tool()
-    async def auth_status() -> dict[str, Any]:
-        """Report whether TOCOnline credentials are configured and their expiry.
+    async def auth_status(
+        verify: Annotated[
+            bool,
+            Field(description="Also make a live API call to confirm the token actually works (default true)."),
+        ] = True,
+    ) -> dict[str, Any]:
+        """Report whether TOCOnline credentials are configured and usable.
 
-        Fast, no side effects. Call this to decide whether to prompt the user
-        through `login` before attempting other tools.
+        Reads the stored credentials and, when `verify=true`, makes one cheap
+        authenticated call so the result reflects whether the token *actually*
+        works — not just the locally cached expiry (which can read "valid" while
+        the API rejects calls). The live call also triggers the client's normal
+        refresh, so a stale-but-refreshable token self-heals here.
         """
         path = credentials_path()
         try:
@@ -42,7 +50,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
                 "reason": str(exc),
             }
         now = int(time.time())
-        return {
+        result: dict[str, Any] = {
             "authenticated": True,
             "profile": creds.profile,
             "api_base": creds.api_base,
@@ -51,6 +59,14 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             "token_expires_in_seconds": creds.expires_at - now,
             "token_obtained_at": creds.obtained_at,
         }
+        if verify:
+            try:
+                await client.request("GET", "/api/countries", params={"page[size]": 1})
+                result["api_verified"] = True
+            except TocError as exc:
+                result["api_verified"] = False
+                result["api_error"] = str(exc)
+        return result
 
     @mcp.tool()
     async def login(

@@ -117,6 +117,35 @@ async def test_get_sales_document_fetches_lines_via_nested_route():
     assert not any("commercial_sales_document_lines" in p for p in paths)  # no flat filter route
 
 
+def test_refresh_reuses_previous_refresh_token_when_response_omits_it():
+    # The core TKT-9 bug: a refresh response with only access_token must reuse
+    # the existing refresh token instead of failing.
+    from toconline_mcp.auth.oauth import _parse_token_payload
+
+    tok = _parse_token_payload({"access_token": "new-at"}, fallback_refresh_token="old-rt")
+    assert tok.access_token == "new-at"
+    assert tok.refresh_token == "old-rt"
+
+
+def test_initial_token_still_requires_refresh_token():
+    from pydantic import ValidationError  # noqa: F401  (keep imports tidy)
+
+    from toconline_mcp.auth.oauth import _parse_token_payload
+    from toconline_mcp.util.errors import AuthError
+
+    with pytest.raises(AuthError):
+        _parse_token_payload({"access_token": "x"})  # no fallback, no refresh_token
+
+
+def test_missing_expires_in_falls_back_to_default():
+    import time as _time
+
+    from toconline_mcp.auth.oauth import _parse_token_payload
+
+    tok = _parse_token_payload({"access_token": "a", "refresh_token": "b"})
+    assert tok.expires_at - int(_time.time()) >= 3500  # ~1h default, not an error
+
+
 def test_sparse_fields_drops_relationship_tokens():
     # Relationship-derived names (*_id / *_ids) raise JA011 in sparse fieldsets.
     params = build_list_params(

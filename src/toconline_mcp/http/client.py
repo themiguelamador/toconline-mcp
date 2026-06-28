@@ -65,6 +65,39 @@ class TocClient:
                 timeout=self._timeout,
             )
 
+    @staticmethod
+    def _load_creds_quietly() -> Credentials | None:
+        try:
+            return load_credentials()
+        except Exception:  # noqa: BLE001 — best-effort pickup; absence is handled by caller
+            return None
+
+    async def _adopt_creds(self, creds: Credentials) -> None:
+        """Switch to credentials re-created out-of-band, rebuilding the client if
+        the api_base changed (a fresh setup may point at a different tenant)."""
+        rebuild = self._client is not None and creds.api_base != self._creds.api_base
+        self._creds = creds
+        if rebuild and self._client is not None:
+            await self._client.aclose()
+            self._client = None
+            await self._ensure_ready()
+
+    async def _do_refresh(self) -> None:
+        assert self._creds is not None
+        tokens = await refresh_token_async(
+            token_url=self._creds.token_url,
+            client_id=self._creds.client_id,
+            client_secret=self._creds.client_secret,
+            refresh_token=self._creds.refresh_token,
+        )
+        self._creds = self._creds.with_tokens(
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            expires_at=tokens.expires_at,
+            obtained_at=tokens.obtained_at,
+        )
+        save_credentials(self._creds)
+
     async def _refresh_if_needed(self, force: bool = False) -> None:
         assert self._creds is not None
         now = int(time.time())
@@ -75,23 +108,27 @@ class TocClient:
             # Another task may have refreshed while we waited for the lock.
             if self._creds.access_token != seen_token:
                 return
+            # Pick up credentials re-created out-of-band (e.g. a manual `setup`)
+            # without a process restart.
+            disk = self._load_creds_quietly()
+            if disk is not None and disk.obtained_at > self._creds.obtained_at:
+                await self._adopt_creds(disk)
             now = int(time.time())
             if not force and self._creds.expires_at - now > _REFRESH_MARGIN_SECONDS:
                 return
             _log.info("Refreshing TOCOnline access token")
-            tokens = await refresh_token_async(
-                token_url=self._creds.token_url,
-                client_id=self._creds.client_id,
-                client_secret=self._creds.client_secret,
-                refresh_token=self._creds.refresh_token,
-            )
-            self._creds = self._creds.with_tokens(
-                access_token=tokens.access_token,
-                refresh_token=tokens.refresh_token,
-                expires_at=tokens.expires_at,
-                obtained_at=tokens.obtained_at,
-            )
-            save_credentials(self._creds)
+            try:
+                await self._do_refresh()
+            except AuthError:
+                # The refresh token may have been rotated by an out-of-band
+                # re-setup; reload from disk and retry once with the fresh token.
+                disk = self._load_creds_quietly()
+                if disk is not None and disk.refresh_token != self._creds.refresh_token:
+                    _log.info("Refresh failed; adopting newer credentials from disk and retrying")
+                    await self._adopt_creds(disk)
+                    await self._do_refresh()
+                else:
+                    raise
 
     def _headers(self, overrides: dict[str, str] | None = None) -> dict[str, str]:
         assert self._creds is not None
