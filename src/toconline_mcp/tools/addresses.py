@@ -75,6 +75,14 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         TOCOnline uses a polymorphic association — the parent is identified
         via the `addressable_type` ("Customer" | "Supplier") and
         `addressable_id` attributes, not a JSON:API relationship.
+
+        Quirk: TOCOnline can return `[400] O valor indicado já existe na tabela`
+        *even when the address was actually created* (the unique constraint is
+        on address_detail + postcode for the same parent). If you hit that
+        error, don't retry — re-check with `list_addresses(customer_id=...)`:
+        the address is likely already there. Make sure the parent's
+        `main_address_id` is set, otherwise sales/purchase documents won't
+        denormalize the address onto the document header.
         """
         if bool(customer_id) == bool(supplier_id):
             raise ValueError("provide exactly one of customer_id or supplier_id")

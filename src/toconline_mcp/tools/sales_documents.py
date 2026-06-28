@@ -150,7 +150,16 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             ),
         ],
         customer_id: Annotated[str, Field(description="TOCOnline customer id.")],
-        date: Annotated[str, Field(description="ISO date, e.g. 2025-01-15.")],
+        date: Annotated[
+            str,
+            Field(
+                description=(
+                    "ISO date, e.g. 2025-01-15. On a certified series the date cannot "
+                    "precede the last issued document's date — TOCOnline rejects back-dating "
+                    "before the most recent document in the series."
+                )
+            ),
+        ],
         lines: Annotated[
             list[SalesDocumentLine], Field(description="At least one line item.", min_length=1)
         ],
@@ -195,6 +204,17 @@ def register(mcp: FastMCP, client: TocClient) -> None:
 
         v1 ignores `finalize=0` (the documented field), so the legacy path is
         the only way to actually leave a doc in draft state via this API.
+
+        Customer identity (name, tax number, address) is denormalized onto the
+        header by TOCOnline server-side, on both paths — but only from the
+        customer's **main address**. If the header comes back with an empty
+        `customer_address_detail`, the customer has no `main_address_id` set;
+        fix the customer's address rather than passing address fields here.
+
+        Date: on a certified series the date cannot precede the series' last
+        issued document. The API enforces this; we don't pre-check it (a type
+        can have multiple series, so a client-side guess would risk blocking
+        valid emissions).
         """
         require_iso_date(date, "date")
         safe_customer_id = require_id(customer_id, "customer_id")
