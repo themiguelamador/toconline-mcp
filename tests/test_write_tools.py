@@ -92,6 +92,22 @@ def test_sales_line_rejects_line_with_neither_description_nor_item():
     assert SalesDocumentLine(item_id="7", item_type="Service", quantity=1, unit_price=10).item_id == "7"
 
 
+async def test_create_draft_sets_series_relationship():
+    # Series is chosen via a relationship (an attribute raises JA000).
+    tools, request = _register(sales_documents)
+    await tools["create_sales_document"](
+        document_type="FT", customer_id="125", date="2026-06-28",
+        lines=[SalesDocumentLine(description="X", quantity=1, unit_price=10)],
+        series_id="361",
+    )
+    header_post = next(
+        c for c in request.call_args_list
+        if c.args[0] == "POST" and c.args[1] == "/api/commercial_sales_documents"
+    )
+    rel = header_post.kwargs["json"]["data"]["relationships"]["commercial_document_series"]
+    assert rel == {"data": {"type": "commercial_document_series", "id": "361"}}
+
+
 async def test_get_sales_document_fetches_lines_via_nested_route():
     # flat ?filter[document_id] raises JA011; must use /{id}/lines.
     tools, request = _register(sales_documents)

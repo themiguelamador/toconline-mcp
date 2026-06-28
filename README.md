@@ -345,7 +345,7 @@ run against the API; **untested** = no automated or live check yet.
 
 ## Tools
 
-53 typed tools plus a generic escape hatch. The typed tools expose exact-match
+54 typed tools plus a generic escape hatch. The typed tools expose exact-match
 filters only, but the underlying API
 [supports comparison operators](https://api-docs.toconline.pt/caracteristicas-dos-pedidos)
 — e.g. `filter="documents.pending_total>0"` or
@@ -380,6 +380,7 @@ Lookup resources used when building documents and items.
 | `list_units_of_measure` | Units (unidades) for document lines. |
 | `list_tax_descriptors` | VAT rates and their codes (`NOR`, `INT`, `RED`, `ISE`). |
 | `list_cash_accounts` | Cash accounts (caixas) for receipts/payments. |
+| `list_document_series` | Document series (séries) per type — `prefix`, numbering, `is_default`. Pass a series id as `series_id` to `create_sales_document`. |
 
 ### Addresses & contacts
 Addresses and contacts are separate JSON:API resources with an owning

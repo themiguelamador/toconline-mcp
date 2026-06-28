@@ -11,6 +11,13 @@ may land in minor versions.
 
 ## [Unreleased]
 
+### Added
+- `create_sales_document` takes an optional `series_id` to issue into a specific
+  document series (a document_type can have several, each with its own
+  numbering). Verified on the draft path; best-effort on the v1 finalize path.
+- `list_document_series` reference tool to discover series ids, prefixes, and
+  which is the default.
+
 ### Fixed
 - `create_address` is now idempotent: it checks the parent's existing addresses
   first and returns a match instead of creating a duplicate (TOCOnline allows

@@ -195,6 +195,16 @@ def register(mcp: FastMCP, client: TocClient) -> None:
                 )
             ),
         ] = None,
+        series_id: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Document series id (from /api/commercial_document_series) to issue into. "
+                    "A document_type can have several series, each with its own numbering. "
+                    "Omit to use the type's default series."
+                )
+            ),
+        ] = None,
     ) -> dict[str, Any]:
         """Create a sales document with line items.
 
@@ -227,6 +237,12 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         series (e.g. FT uses both `FT 2026/…` and `FT 2026P/…`) and we don't
         know which the API will assign, so any client-side guess would risk
         blocking a legitimately back-dated document in another series.
+
+        Series: omit `series_id` to use the type's default series. The draft
+        path honours `series_id` (verified). On the `finalize=True` v1 path the
+        series field is best-effort and unverified (verifying it needs an
+        irreversible emission) — it falls back to the default if unsupported.
+        Discover ids with `list_document_series`.
         """
         require_iso_date(date, "date")
         safe_customer_id = require_id(customer_id, "customer_id")
@@ -245,6 +261,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
                 external_reference=external_reference,
                 payment_mechanism=payment_mechanism,
                 parent_document_id=parent_document_id,
+                series_id=series_id,
             )
         return await _create_draft_legacy(
             client,
@@ -257,6 +274,7 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             external_reference=external_reference,
             payment_mechanism=payment_mechanism,
             parent_document_id=parent_document_id,
+            series_id=series_id,
         )
 
     @mcp.tool()
@@ -294,6 +312,7 @@ async def _create_finalized_v1(
     external_reference: str | None,
     payment_mechanism: str | None,
     parent_document_id: str | None,
+    series_id: str | None = None,
 ) -> dict[str, Any]:
     customer = await client.request("GET", f"/api/customers/{customer_id}")
     body: dict[str, Any] = {
@@ -307,6 +326,9 @@ async def _create_finalized_v1(
         "notes": notes,
         "external_reference": external_reference,
         "payment_mechanism": payment_mechanism,
+        # Flat-body series field for the v1 endpoint. Unverified live (would need an
+        # irreversible emission); when omitted the API uses the type's default series.
+        "commercial_document_series_id": require_id(series_id, "series_id") if series_id else None,
         "lines": [line.model_dump(exclude_none=True) for line in lines],
     }
     if parent_document_id:
@@ -327,6 +349,7 @@ async def _create_draft_legacy(
     external_reference: str | None,
     payment_mechanism: str | None,
     parent_document_id: str | None,
+    series_id: str | None = None,
 ) -> dict[str, Any]:
     """Multi-step draft creation: POST header, POST each line, refetch with lines merged."""
     header_attrs: dict[str, Any] = {
@@ -345,6 +368,13 @@ async def _create_draft_legacy(
         envelope["data"].setdefault("relationships", {})
         envelope["data"]["relationships"]["parent_documents"] = {
             "data": [{"type": _DOC_TYPE, "id": safe_parent}]
+        }
+    if series_id:
+        # Series is set via a relationship, not an attribute (an attribute raises
+        # JA000). Verified live: the draft lands in the requested series.
+        envelope["data"].setdefault("relationships", {})
+        envelope["data"]["relationships"]["commercial_document_series"] = {
+            "data": {"type": "commercial_document_series", "id": require_id(series_id, "series_id")}
         }
 
     header = await client.request("POST", _DOCS_PATH, json=envelope)
