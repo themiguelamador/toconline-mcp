@@ -219,8 +219,8 @@ class TocClient:
                 f"{message} Hint: JA011 is an unsupported query shape (API constraint, not "
                 "a bug). Filter child collections via the nested route — "
                 "/api/<parent>/{id}/lines or /addresses, not flat filter[document_id]/"
-                "filter[customer_id]; and keep relationship fields (*_id/*_ids) out of "
-                "fields[...] (scalars only)."
+                "filter[customer_id]; and in fields[...] request relationships by name "
+                "(e.g. main_address, addresses), not the flattened *_id/*_ids form."
             )
         return message
 

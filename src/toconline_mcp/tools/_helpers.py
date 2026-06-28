@@ -80,14 +80,27 @@ def build_list_params(
         for resource_type, field_list in fields.items():
             if not field_list:
                 continue
-            # Sparse fieldsets accept only scalar attributes. Relationship-derived
-            # names (flattened to `<rel>_id` / `<rel>_ids`) are rejected with JA011,
-            # so drop them rather than letting the whole request fail.
-            kept = [
-                f.strip()
-                for f in field_list.split(",")
-                if f.strip() and not f.strip().endswith(("_id", "_ids"))
-            ]
+            kept = [_field_token(f.strip()) for f in field_list.split(",") if f.strip()]
             if kept:
                 params[f"fields[{resource_type}]"] = ",".join(kept)
     return params
+
+
+def _field_token(name: str) -> str:
+    """Map a flattened relationship name back to its JSON:API relationship name
+    for sparse fieldsets.
+
+    Responses flatten `relationships.<rel>` to `<rel>_id` / `<rel>_ids`, but a
+    sparse fieldset must request the *relationship* (`<rel>`) — the flattened
+    name raises JA011. Translating lets callers reuse the names they see in
+    responses (`main_address_id`, `addresses_ids`) and still get them back.
+
+    Edge case: a few scalar attributes happen to end in `_id` (e.g.
+    `saft_import_id`); those get translated too and the API rejects them. They're
+    rare in sparse fieldsets — request such a scalar by a non-`_id` name if hit.
+    """
+    if name.endswith("_ids"):
+        return name[:-4]
+    if name.endswith("_id"):
+        return name[:-3]
+    return name

@@ -155,12 +155,13 @@ def test_missing_expires_in_falls_back_to_default():
     assert tok.expires_at - int(_time.time()) >= 3500  # ~1h default, not an error
 
 
-def test_sparse_fields_drops_relationship_tokens():
-    # Relationship-derived names (*_id / *_ids) raise JA011 in sparse fieldsets.
+def test_sparse_fields_translates_relationship_tokens():
+    # Flattened relationship names (*_id / *_ids) are mapped back to the JSON:API
+    # relationship name so the sparse fieldset returns them instead of JA011.
     params = build_list_params(
         fields={"customers": "business_name,main_address_id,addresses_ids,tax_registration_number"}
     )
-    assert params["fields[customers]"] == "business_name,tax_registration_number"
+    assert params["fields[customers]"] == "business_name,main_address,addresses,tax_registration_number"
 
 
 def test_sales_line_carries_item_reference_and_tax_code():
