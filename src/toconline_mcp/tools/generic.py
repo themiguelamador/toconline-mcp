@@ -54,22 +54,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             Field(description="Must be true for POST/PATCH/PUT/DELETE. Safety gate against unintended writes."),
         ] = False,
     ) -> Any:
-        """Escape hatch for endpoints not covered by typed tools.
-
-        Path must match `/api/<resource>[/<sub>...]`. Destructive methods require
-        `confirm=true`. Prefer the typed tools (list_customers, create_sales_document,
-        etc.) when they fit.
-
-        Known API constraints (these are API limitations, not bugs — a `JA011`
-        "pedido inválido" is the symptom, don't treat it as a server fault):
-        - To list a document's lines or an entity's addresses, use the NESTED
-          route, not a flat filter: `GET /api/commercial_sales_documents/{id}/lines`
-          and `GET /api/customers/{id}/addresses`. The flat
-          `?filter[document_id]=…` / `?filter[customer_id]=…` forms return JA011.
-        - Sparse fieldsets (`fields[<type>]=…`) accept scalar attributes only;
-          relationship names (`*_id`, `*_ids`) cause JA011 — omit them.
-        - Link an address to a customer/supplier via the `addressable_type` +
-          `addressable_id` attributes (a `customer` relationship is ignored).
+        """Escape hatch for endpoints without a typed tool. Path
+        `/api/<resource>[/<sub>...]`; writes require `confirm=true`. Prefer typed
+        tools when they fit. (JA011 errors return guidance on the cause.)
         """
         _validate_path(path)
         upper = method.upper()

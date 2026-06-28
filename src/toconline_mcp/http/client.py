@@ -216,17 +216,11 @@ class TocClient:
         """
         if "JA011" in message:
             return (
-                f"{message}\n\nHint: JA011 means the query shape is unsupported (not a "
-                "server bug). Common causes and fixes:\n"
-                "- Filtering a child collection flat (e.g. "
-                "`filter[document_id]`, `filter[customer_id]`) is not supported — use the "
-                "nested route instead: `/api/commercial_sales_documents/{id}/lines`, "
-                "`/api/customers/{id}/addresses`. The typed tools "
-                "(`get_sales_document(include_lines=true)`, `list_addresses(customer_id=…)`) "
-                "already do this.\n"
-                "- Putting relationship fields (names ending in `_id`/`_ids`, e.g. "
-                "`main_address_id`) in `fields[...]` — sparse fieldsets accept scalar "
-                "attributes only. Drop them or fetch the full record."
+                f"{message} Hint: JA011 is an unsupported query shape (API constraint, not "
+                "a bug). Filter child collections via the nested route — "
+                "/api/<parent>/{id}/lines or /addresses, not flat filter[document_id]/"
+                "filter[customer_id]; and keep relationship fields (*_id/*_ids) out of "
+                "fields[...] (scalars only)."
             )
         return message
 

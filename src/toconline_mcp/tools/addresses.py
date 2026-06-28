@@ -74,19 +74,11 @@ def register(mcp: FastMCP, client: TocClient) -> None:
             bool, Field(description="Whether this is the entity's primary address.")
         ] = False,
     ) -> dict[str, Any]:
-        """Create an address attached to a customer or supplier.
+        """Create an address for a customer or supplier (exactly one).
 
-        TOCOnline uses a polymorphic association — the parent is identified
-        via the `addressable_type` ("Customer" | "Supplier") and
-        `addressable_id` attributes, not a JSON:API relationship.
-
-        Returns the created (or, on a duplicate, the existing) address re-fetched
-        by id, so the parent link and all fields are populated — the raw POST
-        echo omits them, which makes the address look empty/unlinked.
-
-        TOCOnline enforces a uniqueness constraint on address_detail + postcode
-        per parent and raises `[400] já existe na tabela` on a duplicate; this
-        tool catches that and returns the existing address (idempotent).
+        Idempotent: returns the existing address if one with the same
+        detail+postcode already exists for the parent, else creates and
+        re-fetches it (so the parent link and fields are populated).
         """
         if bool(customer_id) == bool(supplier_id):
             raise ValueError("provide exactly one of customer_id or supplier_id")

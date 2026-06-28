@@ -37,11 +37,7 @@ class SalesDocumentLine(BaseModel):
     )
     item_id: str | None = Field(
         None,
-        description=(
-            "Catalog product/service id (from list_products / list_services). When set with "
-            "item_type, the line inherits the item's code, unit, and (if not overridden) price/VAT — "
-            "`item_code` is filled automatically. Omit for a free-text line and set `description`."
-        ),
+        description="Catalog product/service id; with item_type the line inherits its code/unit/price. Omit for a free-text line (set description).",
     )
     description: str | None = Field(
         None,
@@ -208,41 +204,14 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     ) -> dict[str, Any]:
         """Create a sales document with line items.
 
-        Two code paths depending on `finalize`:
+        finalize=True issues it immediately (fiscally binding, irreversible);
+        finalize=False (default) leaves an editable draft (status 0) — issue it
+        later with finalize_sales_document(id).
 
-          * `finalize=True` — uses the v1 endpoint
-            (`POST /api/v1/commercial_sales_documents`), which takes a flat
-            body, embeds lines inline, and **issues the document immediately**
-            (fiscally binding, irreversible). Customer identity fields are
-            denormalized by fetching `/api/customers/{customer_id}` first.
-          * `finalize=False` (default) — uses the legacy JSON:API endpoint
-            multi-step: POST the header to `/api/commercial_sales_documents`,
-            then POST each line to `/api/commercial_sales_document_lines`
-            with `document_id` linking. The document stays as a **draft**
-            (status 0) — editable, not yet fiscally valid. To issue later,
-            call `finalize_sales_document(id)`.
-
-        v1 ignores `finalize=0` (the documented field), so the legacy path is
-        the only way to actually leave a doc in draft state via this API.
-
-        Customer identity (name, tax number, address) is denormalized onto the
-        header by TOCOnline server-side, on both paths — but only from the
-        customer's **main address**. If the header comes back with an empty
-        `customer_address_detail`, the customer has no `main_address_id` set;
-        fix the customer's address rather than passing address fields here.
-
-        Date: on a certified series the date cannot precede that series' last
-        issued document. The API enforces this per series; we deliberately
-        don't pre-check it client-side — a document_type can map to several
-        series (e.g. FT uses both `FT 2026/…` and `FT 2026P/…`) and we don't
-        know which the API will assign, so any client-side guess would risk
-        blocking a legitimately back-dated document in another series.
-
-        Series: omit `series_id` to use the type's default series. The draft
-        path honours `series_id` (verified). On the `finalize=True` v1 path the
-        series field is best-effort and unverified (verifying it needs an
-        irreversible emission) — it falls back to the default if unsupported.
-        Discover ids with `list_document_series`.
+        Customer name/tax/address are denormalized onto the header from the
+        customer's main address; an empty customer_address_detail means the
+        customer has no main_address_id set. A certified series rejects a date
+        before its last issued document (enforced per series, API-side).
         """
         require_iso_date(date, "date")
         safe_customer_id = require_id(customer_id, "customer_id")

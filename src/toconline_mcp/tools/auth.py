@@ -34,11 +34,9 @@ def register(mcp: FastMCP, client: TocClient) -> None:
     ) -> dict[str, Any]:
         """Report whether TOCOnline credentials are configured and usable.
 
-        Reads the stored credentials and, when `verify=true`, makes one cheap
-        authenticated call so the result reflects whether the token *actually*
-        works — not just the locally cached expiry (which can read "valid" while
-        the API rejects calls). The live call also triggers the client's normal
-        refresh, so a stale-but-refreshable token self-heals here.
+        With verify=true (default) makes one cheap authenticated call so the
+        result reflects whether the token actually works (and refreshes it if
+        needed), not just the cached local expiry.
         """
         path = credentials_path()
         try:
