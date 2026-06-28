@@ -117,6 +117,15 @@ async def test_get_sales_document_fetches_lines_via_nested_route():
     assert not any("commercial_sales_document_lines" in p for p in paths)  # no flat filter route
 
 
+def test_ja011_error_gets_actionable_hint():
+    # A model driving the MCP should learn JA011 is a query-shape limitation, not a bug.
+    msg = TocClient._augment_message("Erro de sistema JA011: pedido inválido.")
+    assert "JA011" in msg
+    assert "nested route" in msg.lower() and "/lines" in msg
+    # Unrelated errors pass through untouched.
+    assert TocClient._augment_message("Some other error") == "Some other error"
+
+
 def test_refresh_reuses_previous_refresh_token_when_response_omits_it():
     # The core TKT-9 bug: a refresh response with only access_token must reuse
     # the existing refresh token instead of failing.

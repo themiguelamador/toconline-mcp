@@ -200,10 +200,35 @@ class TocClient:
                     f"TOCOnline rejected the request (401): {message}. "
                     "Run `toconline-mcp setup` if this persists."
                 )
+            message = self._augment_message(message)
             raise ApiError(response.status_code, message, body)
         if body is None:
             return None
         return flatten_response(body) if flatten else body
+
+    @staticmethod
+    def _augment_message(message: str) -> str:
+        """Attach actionable guidance to opaque API errors so a model driving the
+        MCP can self-correct instead of treating them as dead ends.
+
+        `JA011` is the API's generic "invalid request" — it is not a server fault
+        and usually means an unsupported query shape, not a bug to report.
+        """
+        if "JA011" in message:
+            return (
+                f"{message}\n\nHint: JA011 means the query shape is unsupported (not a "
+                "server bug). Common causes and fixes:\n"
+                "- Filtering a child collection flat (e.g. "
+                "`filter[document_id]`, `filter[customer_id]`) is not supported — use the "
+                "nested route instead: `/api/commercial_sales_documents/{id}/lines`, "
+                "`/api/customers/{id}/addresses`. The typed tools "
+                "(`get_sales_document(include_lines=true)`, `list_addresses(customer_id=…)`) "
+                "already do this.\n"
+                "- Putting relationship fields (names ending in `_id`/`_ids`, e.g. "
+                "`main_address_id`) in `fields[...]` — sparse fieldsets accept scalar "
+                "attributes only. Drop them or fetch the full record."
+            )
+        return message
 
     @staticmethod
     def _extract_error_message(body: Any, fallback: str) -> str:

@@ -19,6 +19,11 @@ may land in minor versions.
   credentials from disk (no process restart) and retries a rotated token once.
 
 ### Changed
+- `JA011` API errors now carry an actionable hint (use the nested
+  `/{id}/lines` and `/{id}/addresses` routes; keep relationship fields out of
+  sparse fieldsets) and state they are API constraints, not server faults — so a
+  model driving the MCP self-corrects instead of treating them as dead ends. The
+  `api_request` docstring documents the same constraints.
 - `auth_status` makes a live API call by default (`verify=true`) so it reflects
   whether the token actually works, not just the cached local expiry; the call
   also triggers a normal refresh, letting a stale-but-refreshable token

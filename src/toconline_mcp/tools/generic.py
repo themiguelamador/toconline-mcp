@@ -59,6 +59,17 @@ def register(mcp: FastMCP, client: TocClient) -> None:
         Path must match `/api/<resource>[/<sub>...]`. Destructive methods require
         `confirm=true`. Prefer the typed tools (list_customers, create_sales_document,
         etc.) when they fit.
+
+        Known API constraints (these are API limitations, not bugs — a `JA011`
+        "pedido inválido" is the symptom, don't treat it as a server fault):
+        - To list a document's lines or an entity's addresses, use the NESTED
+          route, not a flat filter: `GET /api/commercial_sales_documents/{id}/lines`
+          and `GET /api/customers/{id}/addresses`. The flat
+          `?filter[document_id]=…` / `?filter[customer_id]=…` forms return JA011.
+        - Sparse fieldsets (`fields[<type>]=…`) accept scalar attributes only;
+          relationship names (`*_id`, `*_ids`) cause JA011 — omit them.
+        - Link an address to a customer/supplier via the `addressable_type` +
+          `addressable_id` attributes (a `customer` relationship is ignored).
         """
         _validate_path(path)
         upper = method.upper()
